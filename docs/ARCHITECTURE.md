@@ -11,7 +11,7 @@ Domain (src/domain.js: reducer, rules, scoring)
 
 画面は即時の押下反応のため早押しを楽観表示し、サーバー配信状態で確定する。HTTP POSTで操作を送り、SSEで全端末にスナップショットを配る。Nodeのイベントループが一つのルームの操作を逐次適用する。ルーム、参加者トークン、タイマーはメモリ上にあり、再起動後は復元されない。
 
-`src/platform.js` が端末APIの境界で、UIとドメインはDOM以外のブラウザー機能へ直接依存しない。WebではPWAのアプリシェルをキャッシュし、ネイティブでは同じ画面をCapacitor WebViewで動かす。ネイティブ起動側は `globalThis.QROOM_PLATFORM` でAPI接続先、共有リンク用Webオリジン、HTTP要求、非同期ストレージ、触覚、共有、イベントストリーム、ライフサイクルイベントを注入できる。SSE切断時は状態をHTTPで再取得してイベント接続を張り直し、Appプラグインで復帰した場合も最新状態を再取得する。Androidの戻るボタンを画面遷移へ結び付ける。セッショントークンはSecure Storageプラグインを通してiOS Keychain / Android Keystoreで保護する。APIサーバー側CSP接続先は `QROOM_API_ORIGIN` で指定する。ゲームの通信契約（HTTPコマンド + SSE）は共通である。
+`src/platform.js` が端末APIの境界で、UIとドメインはDOM以外のブラウザー機能へ直接依存しない。WebではPWAのアプリシェルをキャッシュし、ネイティブでは同じ画面をCapacitor WebViewで動かす。ネイティブ起動側は `globalThis.QROOM_PLATFORM` でAPI接続先、共有リンク用Webオリジン、HTTP要求、非同期ストレージ、触覚、共有、イベントストリーム、ライフサイクルイベントを注入できる。SSE切断時は指数バックオフで再接続し、HTTPで最新状態を取得してからイベント接続を張り直す。Appプラグインで復帰した場合も最新状態を再取得する。Androidの戻るボタンを画面遷移へ結び付ける。セッショントークンはSecure Storageプラグインを通してiOS Keychain / Android Keystoreで保護する。APIサーバー側CSP接続先は `QROOM_API_ORIGIN` で指定する。ゲームの通信契約（HTTPコマンド + SSE）は共通である。
 
 ホストの共有操作はWeb URLと `qroom://join?room=CODE` を生成する。Webでは参加フォームへコードを引き継ぎ、ネイティブ共有シートからWeb URLまたはアプリ用スキームを開ける。iOS / Android は App プラグインの launch URL と app URL event で受け取り、ルームコードを検証してから参加フォームへ渡す。
 

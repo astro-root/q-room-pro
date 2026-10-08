@@ -20,6 +20,7 @@ let pendingRoomCode = roomCodeFromUrl(globalThis.location.href);
 let session = null;
 let eventSource = null;
 let reconnectTimer = null;
+let reconnectAttempts = 0;
 let notice = "";
 let currentVersion = 0;
 const QUESTION_SECONDS = 20;
@@ -69,22 +70,27 @@ function connectRoomEvents() {
   };
   eventSource.onmessage = (event) => {
     if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
+    reconnectAttempts = 0;
     notice = "";
     applySnapshot(JSON.parse(event.data));
   };
   eventSource.onerror = () => {
     notice = "再接続中… · ネットワークを確認してください";
     render();
-    if (reconnectTimer === null) reconnectTimer = window.setTimeout(async () => {
-      reconnectTimer = null;
-      const activeSession = session;
-      if (!activeSession) return;
-      await refreshRoom();
-      if (session === activeSession) {
-        eventSource?.close();
-        connectRoomEvents();
-      }
-    }, 3000);
+    if (reconnectTimer === null) {
+      const baseDelay = Math.min(30_000, 3_000 * (2 ** Math.min(reconnectAttempts++, 4)));
+      const retryDelay = Math.round(baseDelay * (0.8 + Math.random() * 0.4));
+      reconnectTimer = window.setTimeout(async () => {
+        reconnectTimer = null;
+        const activeSession = session;
+        if (!activeSession) return;
+        await refreshRoom();
+        if (session === activeSession) {
+          eventSource?.close();
+          connectRoomEvents();
+        }
+      }, retryDelay);
+    }
   };
 }
 
