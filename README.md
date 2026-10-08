@@ -16,11 +16,16 @@ HTTPSで開くWebアプリはPWAとしてインストールできます。画面
 
 ## VercelへのWebデプロイ
 
-リポジトリをVercelへインポートすると、`vercel.json` が `npm run build:vercel` を実行し、生成した `www/` を静的サイトとして公開します。Vercelプロジェクトの Environment Variables に `QROOM_API_BASE` を設定してください。値は別途稼働させるAPIサーバーのHTTPSオリジンです（例: `https://api.example.com`）。未設定やHTTPはビルド時にエラーになります。
+このリポジトリには自作バックエンド `server.js` が含まれています。外部のデータベースサービスは使わず、無料の Render Web Service でこの Node.js サーバーを動かし、Vercel には Web 画面を配置する構成です。`render.yaml` が無料プランのバックエンドを定義します。
 
-このアプリのAPIはインメモリのルーム状態と長時間のSSE接続を使うため、フロントエンドの静的デプロイだけではゲーム機能は動きません。APIサーバーは常時稼働するNode.jsホストで動かし、`QROOM_WEB_ORIGINS` にVercelの本番ドメインを指定してください。プレビュー環境からも接続する場合は、そのプレビューURLも許可リストへ追加します。Vercel Functionsには実行時間上限があるため、現在のSSEサーバーをそのまま長時間接続用Functionにする構成は対象外です。[VercelのFunction実行時間](https://vercel.com/docs/functions/configuring-functions/duration)
+1. Vercel の Project Settings で、このプロジェクトの本番ドメインを確認します。
+2. Render で **New → Blueprint** を選び、この GitHub リポジトリを接続して `render.yaml` からサービスを作成します。プランは Free を選びます。
+3. Render のサービス URL（例: `https://q-room-pro-backend.onrender.com`）が発行されたら、Render の Environment で `QROOM_WEB_ORIGINS` に手順1の Vercel オリジンを設定します（`https://` を含むドメインだけ）。保存後に再デプロイします。
+4. Vercel の Environment Variables に `QROOM_API_BASE` として Render のサービス URL を設定し、Vercel を再デプロイします。HTTPやパスを含む値はビルド時に拒否されます。
 
-Vercelの Build and Development Settings は `vercel.json` の設定を使います。Vercel側で独自のOutput Directoryを上書きしないでください。APIサーバーが別オリジンなら、そのサーバーでTLSとCORSを設定し、Webアプリの本番オリジンからのリクエストを許可します。
+無料 Render サービスは15分間リクエストがないと停止し、次のアクセス時に起動するまで約1分かかる場合があります。ルーム状態はメモリ上だけにあるため、停止・再起動・再デプロイで進行中のルームは消えます。これは無料で試すための構成で、常時稼働やルームの永続保存は提供しません。[Render無料サービスの制限](https://render.com/docs/free)
+
+Vercel の Build and Development Settings は `vercel.json` の設定を使います。独自の Output Directory で上書きしないでください。
 
 ## ネイティブアプリの土台
 

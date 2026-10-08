@@ -131,6 +131,9 @@ const server = createServer(async (request, response) => {
       response.writeHead(204, { "Access-Control-Max-Age": "600" });
       return response.end();
     }
+    if (request.method === "GET" && path === "/api/health") {
+      return json(response, 200, { status: "ok" });
+    }
     if (request.method === "POST" && path === "/api/rooms") {
       if (!allowRequest(request, "create", 10)) return json(response, 429, { error: "しばらく待ってからもう一度お試しください" });
       if (rooms.size >= 1000) return json(response, 503, { error: "現在ルームを作成できません。しばらく待ってください" });
