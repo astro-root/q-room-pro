@@ -94,3 +94,15 @@ export function openRoomEvents(roomId) {
   const url = `${apiBase}/api/rooms/${encodeURIComponent(roomId)}/events`;
   return nativeBridge.openRoomEvents ? nativeBridge.openRoomEvents(url) : new EventSource(url);
 }
+
+export function onNativeBackButton(handler) {
+  return nativeBridge.onBackButton?.(handler);
+}
+
+export function onAppResume(handler) {
+  return nativeBridge.onAppResume?.(handler);
+}
+
+export function exitNativeApp() {
+  return nativeBridge.exitApp?.();
+}

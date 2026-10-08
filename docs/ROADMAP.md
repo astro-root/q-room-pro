@@ -20,7 +20,7 @@
 ## Phase 4: 製品UIと端末対応
 - Web運営画面・スコアボードを整備し、PWA化（マニフェストとオフライン用アプリシェルは実装済み。ルーム機能はオンライン必須）。
 - iOS/Android実機でタッチ、触覚、音声、画面ロック等を評価。
-- Capacitor設定、Android/iOSプロジェクト、ネイティブ資産同期を実装済み。API接続先・CORS・ネイティブHaptics/Share・安全な保存を実機検証。
+- Capacitor設定、Android/iOSプロジェクト、ネイティブ資産同期、App/Haptics/Share連携を実装済み。API接続先・CORS・触覚・安全な保存・戻る操作を実機検証。
 
 ## Phase 5: 運用拡張
 - オフライン単一端末ゲームの保存・復元を設計。

@@ -1,5 +1,5 @@
 import { Phase, RULES, activePlayers, canBuzz, orderedResults, reduceGame } from "./domain.js";
-import { buzzFeedback, openRoomEvents, readPreference, removePreference, request, requestFullscreen, shareRoomCode, writePreference } from "./platform.js";
+import { buzzFeedback, exitNativeApp, onAppResume, onNativeBackButton, openRoomEvents, readPreference, removePreference, request, requestFullscreen, shareRoomCode, writePreference } from "./platform.js";
 import "./styles.css";
 
 const app = document.querySelector("#app");
@@ -148,7 +148,7 @@ app.addEventListener("click", (event) => {
     event.preventDefault();
     if (event.target.closest("[data-action='leave-room']")?.tagName === "BUTTON" && !window.confirm("ルーム接続を終了しますか？")) return;
     if (event.target.closest("[data-action='leave-room']")?.tagName === "A" && session?.role === "host" && !window.confirm("ルーム画面を終了しますか？参加者との接続も閉じます。")) return;
-    eventSource?.close(); eventSource = null; session = null; game = null; void removePreference("qroom-session"); view = "home"; render();
+    closeRoomView();
   }
 });
 
@@ -163,6 +163,37 @@ app.addEventListener("pointerup", () => document.querySelectorAll(".player-buzz.
 window.addEventListener("keydown", (event) => {
   if (view !== "player" || event.repeat || event.target.matches("input,textarea,select")) return;
   if (event.code === "Space" && session?.playerId && canBuzz(game, session.playerId)) void dispatch({ type: "BUZZ", playerId: session.playerId });
+});
+
+async function refreshRoom() {
+  if (!session) return;
+  try {
+    const snapshot = await api(`/api/rooms/${session.roomId}`);
+    notice = "";
+    applySnapshot(snapshot);
+  } catch {
+    notice = "再接続中… · ネットワークを確認してください";
+    render();
+  }
+}
+
+function closeRoomView() {
+  eventSource?.close(); eventSource = null; session = null; game = null;
+  void removePreference("qroom-session");
+  view = "home";
+  render();
+}
+
+void onAppResume(() => { void refreshRoom(); });
+void onNativeBackButton(async () => {
+  if (view === "setup" || view === "join") {
+    view = "home";
+    render();
+  } else if (view === "room" || view === "player") {
+    if (window.confirm("ルーム接続を終了しますか？")) closeRoomView();
+  } else {
+    await exitNativeApp();
+  }
 });
 
 async function restoreSession() {
