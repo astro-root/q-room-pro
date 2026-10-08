@@ -12,6 +12,7 @@ for (const file of staticFiles) await cp(resolve(projectRoot, file), resolve(out
 await cp(resolve(projectRoot, "src"), resolve(outputDirectory, "src"), { recursive: true });
 
 const configuredApiBase = (process.env.QROOM_API_BASE || "").replace(/\/+$/, "");
+const configuredWebBase = (process.env.QROOM_WEB_BASE || "").replace(/\/+$/, "");
 const nativeBuild = process.env.QROOM_NATIVE_BUILD === "1";
 if (nativeBuild) {
   let apiUrl;
@@ -20,7 +21,14 @@ if (nativeBuild) {
     throw new Error("QROOM_API_BASE はパスを含まない HTTPS オリジンを指定してください");
   }
 }
-const runtimeConfig = `globalThis.QROOM_API_BASE = ${JSON.stringify(configuredApiBase)};\n${nativeBuild ? 'globalThis.QROOM_PLATFORM = { ...(globalThis.QROOM_PLATFORM || {}), isNative: true, apiBase: globalThis.QROOM_API_BASE };\n' : ""}`;
+if (nativeBuild && configuredWebBase) {
+  let webUrl;
+  try { webUrl = new URL(configuredWebBase); } catch { throw new Error("QROOM_WEB_BASE は公開Webアプリの HTTPS オリジンを指定してください"); }
+  if (webUrl.protocol !== "https:" || webUrl.pathname !== "/" || webUrl.search || webUrl.hash || webUrl.username || webUrl.password) {
+    throw new Error("QROOM_WEB_BASE はパスを含まない HTTPS オリジンを指定してください");
+  }
+}
+const runtimeConfig = `globalThis.QROOM_API_BASE = ${JSON.stringify(configuredApiBase)};\nglobalThis.QROOM_WEB_BASE = ${JSON.stringify(configuredWebBase)};\n${nativeBuild ? 'globalThis.QROOM_PLATFORM = { ...(globalThis.QROOM_PLATFORM || {}), isNative: true, apiBase: globalThis.QROOM_API_BASE, webBase: globalThis.QROOM_WEB_BASE };\n' : ""}`;
 await writeFile(resolve(outputDirectory, "runtime-config.js"), runtimeConfig);
 
 if (nativeBuild) {

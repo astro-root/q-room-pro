@@ -31,10 +31,10 @@ npm install
 npx cap add android
 # macOSでiOSも作る場合
 npx cap add ios
-QROOM_NATIVE_BUILD=1 QROOM_API_BASE=https://api.example.com npm run cap:sync
+QROOM_NATIVE_BUILD=1 QROOM_API_BASE=https://api.example.com QROOM_WEB_BASE=https://app.example.com npm run cap:sync
 ```
 
-Android Studio / Android SDK、iOSではmacOS / Xcodeが別途必要です。`www/` はビルド生成物です。ネイティブビルドでは `QROOM_API_BASE` に到達可能なHTTPS APIを必ず指定してください。Webサーバーと同一オリジンで使う場合だけ省略できます。Android/iOSのプロジェクトは `npx cap add` 済みです。既存環境では追加コマンドを省略し、`QROOM_NATIVE_BUILD=1 QROOM_API_BASE=https://api.example.com npm run cap:sync` でWeb資産と同期できます。
+Android Studio / Android SDK、iOSではmacOS / Xcodeが別途必要です。`www/` はビルド生成物です。ネイティブビルドでは `QROOM_API_BASE` に到達可能なHTTPS APIを必ず指定してください。`QROOM_WEB_BASE` は共有リンクを開く公開WebアプリのHTTPSオリジンです。APIとWebアプリが同じオリジンなら省略でき、その場合はAPIオリジンを使います。Android/iOSのプロジェクトは `npx cap add` 済みです。既存環境では追加コマンドを省略し、`QROOM_NATIVE_BUILD=1 QROOM_API_BASE=https://api.example.com QROOM_WEB_BASE=https://app.example.com npm run cap:sync` でWeb資産と同期できます。
 
 LAN上のHTTP接続では認証トークンが暗号化されません。信頼できるネットワークでの動作確認に限り、公開利用では必ずHTTPS終端を持つリバースプロキシの背後に配置してください。サーバー再起動時にルームとスコアは消去されます。
 

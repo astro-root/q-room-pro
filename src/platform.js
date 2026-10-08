@@ -5,6 +5,7 @@ const nativeBridge = globalThis.QROOM_PLATFORM || {};
 export const isNativePlatform = Boolean(nativeBridge.isNative || capacitor?.isNativePlatform?.());
 
 export const apiBase = (nativeBridge.apiBase || globalThis.QROOM_API_BASE || "").replace(/\/$/, "");
+const webBase = (nativeBridge.webBase || globalThis.QROOM_WEB_BASE || "").replace(/\/$/, "");
 
 export function request(path, options) {
   const url = `${apiBase}${path}`;
@@ -68,7 +69,7 @@ export async function shareRoomCode(code) {
   const appUrl = new URL("qroom://join");
   appUrl.searchParams.set("room", code);
   const text = `Q-Room Pro ルームコード: ${code}${nativeBridge.isNative ? `\nアプリで開く: ${appUrl.href}` : ""}`;
-  const joinUrl = new URL("/", apiBase || globalThis.location.origin);
+  const joinUrl = new URL("/", webBase || (isNativePlatform ? apiBase : globalThis.location.origin));
   joinUrl.searchParams.set("room", code);
   if (nativeBridge.share) {
     await nativeBridge.share({ title: "Q-Room Pro", text, url: joinUrl.href });
