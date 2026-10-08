@@ -166,7 +166,10 @@ function renderPlayer() {
   app.innerHTML = `<main class="player-shell ${canPress ? "accepting" : ""}"><header class="player-header"><a class="brand compact" href="#" data-action="leave-room"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></a><span class="room-code"><small>ROOM</small><b>${game.roomId}</b></span></header><section class="player-main"><div class="player-game-meta"><span class="eyebrow">${esc(game.roomName)} · ${RULES[game.ruleId].name}</span><span>QUESTION ${String(game.question).padStart(2, "0")}</span></div><div class="player-select-label">PLAYER</div><div class="player-scoreline"><div><strong>${esc(player.name)}</strong><span>${player.correct} ○ <i>${player.incorrect} ×</i></span></div><b>${player.score}<small>PTS</small></b></div>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="player-buzz ${canPress ? "ready" : ""} ${game.buzzedPlayerId === player.id ? "won" : ""}" data-action="buzz" data-id="${player.id}" ${canPress ? "" : "disabled"}><span>${canPress ? "BUZZ" : game.buzzedPlayerId === player.id ? "BUZZED" : "WAIT"}</span><small>${canPress ? "TAP TO ANSWER" : esc(label)}</small></button><div class="player-state"><span class="state-dot ${game.phase}"></span>${esc(label)}${game.phase === Phase.QUESTION ? `<b class="player-time">${timerRemaining}s</b>` : ""}</div></section><footer class="player-footer"><span>Q-ROOM PRO</span><button class="text-button" data-action="leave-room">ルームを退出</button></footer></main>`;
 }
 
-function render() { view === "home" ? renderHome() : view === "setup" ? renderSetup() : view === "join" ? renderJoin() : view === "player" ? renderPlayer() : renderRoom(); }
+function render() {
+  view === "home" ? renderHome() : view === "setup" ? renderSetup() : view === "join" ? renderJoin() : view === "player" ? renderPlayer() : renderRoom();
+  app.dataset.ready = "true";
+}
 
 app.addEventListener("click", (event) => {
   const button = event.target.closest("[data-action]"); if (!button) return;
@@ -276,4 +279,5 @@ async function restoreSession() {
   }
   render();
 }
+render();
 void restoreSession();
