@@ -11,8 +11,15 @@ await mkdir(outputDirectory, { recursive: true });
 for (const file of staticFiles) await cp(resolve(projectRoot, file), resolve(outputDirectory, file));
 await cp(resolve(projectRoot, "src"), resolve(outputDirectory, "src"), { recursive: true });
 
-const configuredApiBase = process.env.QROOM_API_BASE || "";
+const configuredApiBase = (process.env.QROOM_API_BASE || "").replace(/\/+$/, "");
 const nativeBuild = process.env.QROOM_NATIVE_BUILD === "1";
+if (nativeBuild) {
+  let apiUrl;
+  try { apiUrl = new URL(configuredApiBase); } catch { throw new Error("ネイティブビルドには QROOM_API_BASE=https://api.example.com が必要です"); }
+  if (apiUrl.protocol !== "https:" || apiUrl.pathname !== "/" || apiUrl.search || apiUrl.hash || apiUrl.username || apiUrl.password) {
+    throw new Error("QROOM_API_BASE はパスを含まない HTTPS オリジンを指定してください");
+  }
+}
 const runtimeConfig = `globalThis.QROOM_API_BASE = ${JSON.stringify(configuredApiBase)};\n${nativeBuild ? 'globalThis.QROOM_PLATFORM = { ...(globalThis.QROOM_PLATFORM || {}), isNative: true, apiBase: globalThis.QROOM_API_BASE };\n' : ""}`;
 await writeFile(resolve(outputDirectory, "runtime-config.js"), runtimeConfig);
 
