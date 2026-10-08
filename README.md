@@ -14,6 +14,14 @@ npm start
 
 HTTPSで開くWebアプリはPWAとしてインストールできます。画面シェルはService Workerでキャッシュしますが、ルームの作成・参加・同期はオンライン接続が必要です。
 
+## VercelへのWebデプロイ
+
+リポジトリをVercelへインポートすると、`vercel.json` が `npm run build:vercel` を実行し、生成した `www/` を静的サイトとして公開します。Vercelプロジェクトの Environment Variables に `QROOM_API_BASE` を設定してください。値は別途稼働させるAPIサーバーのHTTPSオリジンです（例: `https://api.example.com`）。未設定やHTTPはビルド時にエラーになります。
+
+このアプリのAPIはインメモリのルーム状態と長時間のSSE接続を使うため、フロントエンドの静的デプロイだけではゲーム機能は動きません。APIサーバーは常時稼働するNode.jsホストで動かし、`QROOM_WEB_ORIGINS` にVercelの本番ドメインを指定してください。プレビュー環境からも接続する場合は、そのプレビューURLも許可リストへ追加します。Vercel Functionsには実行時間上限があるため、現在のSSEサーバーをそのまま長時間接続用Functionにする構成は対象外です。[VercelのFunction実行時間](https://vercel.com/docs/functions/configuring-functions/duration)
+
+Vercelの Build and Development Settings は `vercel.json` の設定を使います。Vercel側で独自のOutput Directoryを上書きしないでください。APIサーバーが別オリジンなら、そのサーバーでTLSとCORSを設定し、Webアプリの本番オリジンからのリクエストを許可します。
+
 ## ネイティブアプリの土台
 
 画面とドメインはES Modulesのまま共有し、`src/platform.js` に保存・振動・共有・全画面・イベント接続などの端末差を集めています。Capacitor設定、Android/iOSプロジェクト、`www/` へのビルド処理を追加しました。ランチャーアイコンと起動画面は Web の SVG マークから依存なしで生成します。ストア署名・配布設定と実機検証はまだです。

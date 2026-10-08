@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Q-Room Pro</title>
   <rect width="512" height="512" rx="112" fill="#101318"/>
-  <circle cx="256" cy="256" r="164" fill="none" stroke="#83f0c2" stroke-width="38"/>
-  <path d="m332 333 94 94" fill="none" stroke="#83f0c2" stroke-linecap="round" stroke-width="42"/>
-  <circle cx="256" cy="256" r="42" fill="#83f0c2"/>
+  <circle cx="256" cy="256" r="154" fill="none" stroke="#d4fc63" stroke-width="40"/>
+  <path d="m306 306 99 99" fill="none" stroke="#d4fc63" stroke-linecap="round" stroke-width="44"/>
 </svg>

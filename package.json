@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "build:web": "node scripts/build-web.mjs",
+    "build:vercel": "node scripts/build-vercel.mjs",
     "assets:generate": "node scripts/generate-native-icons.mjs",
     "cap:sync": "npm run assets:generate && npm run build:web && cap sync"
   },

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dark = [16, 19, 24, 255];
-const mint = [131, 240, 194, 255];
+const lime = [212, 252, 99, 255];
 
 function roundedBackground(x, y) {
   const nearestX = Math.max(112, Math.min(400, x));
@@ -14,13 +14,13 @@ function roundedBackground(x, y) {
 }
 
 function inMark(x, y) {
-  const ringDistance = Math.abs(Math.hypot(x - 256, y - 256) - 164);
-  if (ringDistance <= 19) return true;
-  const ax = 332, ay = 333, bx = 426, by = 427;
+  const ringDistance = Math.abs(Math.hypot(x - 256, y - 256) - 154);
+  if (ringDistance <= 20) return true;
+  const ax = 306, ay = 306, bx = 405, by = 405;
   const dx = bx - ax, dy = by - ay;
   const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
   if (Math.hypot(x - (ax + t * dx), y - (ay + t * dy)) <= 21) return true;
-  return Math.hypot(x - 256, y - 256) <= 42;
+  return false;
 }
 
 function raster(size, { background = true, markScale = 1 } = {}) {
@@ -35,7 +35,7 @@ function raster(size, { background = true, markScale = 1 } = {}) {
           const py = (y + (sy + 0.5) / samples) / size * 512;
           const bx = 256 + (px - 256) / markScale;
           const by = 256 + (py - 256) / markScale;
-          const color = inMark(bx, by) ? mint : background && roundedBackground(px, py) ? dark : [0, 0, 0, 0];
+          const color = inMark(bx, by) ? lime : background && roundedBackground(px, py) ? dark : [0, 0, 0, 0];
           const opacity = color[3] / 255;
           red += color[0] * opacity; green += color[1] * opacity; blue += color[2] * opacity; alpha += opacity;
         }
