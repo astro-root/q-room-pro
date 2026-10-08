@@ -8,6 +8,12 @@ import { Phase, RULES, createGame, reduceGame } from "./src/domain.js";
 const root = fileURLToPath(new URL(".", import.meta.url));
 const port = Number(process.env.PORT || 8000);
 const apiOrigin = (process.env.QROOM_API_ORIGIN || "").replace(/\/$/, "");
+const allowedOrigins = new Set([
+  "capacitor://localhost",
+  "https://localhost",
+  "http://localhost",
+  ...(process.env.QROOM_WEB_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean),
+]);
 const rooms = new Map();
 const requestWindows = new Map();
 const mime = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".webmanifest": "application/manifest+json; charset=utf-8", ".svg": "image/svg+xml" };
@@ -27,8 +33,18 @@ function allowRequest(request, bucket, limit) {
 }
 
 function json(response, status, value) {
-  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" });
+  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" });
   response.end(JSON.stringify(value));
+}
+
+function applyCors(request, response) {
+  const origin = request.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    response.setHeader("Access-Control-Allow-Origin", origin);
+    response.setHeader("Vary", "Origin");
+  }
+  response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
 }
 
 async function readBody(request) {
@@ -107,11 +123,12 @@ async function serveStatic(request, response, pathname) {
 }
 
 const server = createServer(async (request, response) => {
+  applyCors(request, response);
   const url = new URL(request.url, "http://localhost");
   const path = url.pathname;
   try {
     if (request.method === "OPTIONS" && path.startsWith("/api/")) {
-      response.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Max-Age": "600" });
+      response.writeHead(204, { "Access-Control-Max-Age": "600" });
       return response.end();
     }
     if (request.method === "POST" && path === "/api/rooms") {
@@ -134,7 +151,7 @@ const server = createServer(async (request, response) => {
     if (request.method === "GET" && eventMatch) {
       const room = rooms.get(eventMatch[1]);
       if (!room) return json(response, 404, { error: "ルームが見つかりません" });
-      response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", "Access-Control-Allow-Origin": "*", Connection: "keep-alive", "X-Accel-Buffering": "no", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" });
+      response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" });
       response.write(`data: ${JSON.stringify(publicRoom(room))}\n\n`);
       room.listeners.add(response);
       const heartbeat = setInterval(() => response.write(": keep-alive\n\n"), 20_000);

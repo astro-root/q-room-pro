@@ -20,7 +20,7 @@ HTTPSで開くWebアプリはPWAとしてインストールできます。画面
 
 ネイティブ専用バンドルはCapacitor App / Haptics / ShareとSecure Storageを利用します。セッショントークンはiOS KeychainまたはAndroid Keystoreで暗号化して保存します。Androidの戻るボタンは画面状態に応じてホームへ戻る、ルーム退出を確認する、アプリを閉じる動作にしています。アプリ復帰時はルームの最新状態を再取得します。追加の端末実装は `globalThis.QROOM_PLATFORM` で注入でき、`request(url, options)`、非同期 `storage.get/set/remove`、`haptics.buzz(ms)`、`share({title,text})`、`openRoomEvents(url)` を差し替えられます。イベント接続は `onmessage` / `onerror` を設定でき、`close()` を持つオブジェクトを返してください。
 
-例: `globalThis.QROOM_PLATFORM = { apiBase: "https://api.example.com", storage: secureStorageAdapter }`。APIサーバーには同じオリジンを `QROOM_API_ORIGIN` 環境変数で設定してください（CSPの接続先に追加されます）。CORSはBearer認証を使うAPI向けに有効です。公開時はAPIもHTTPSにしてください。
+例: `globalThis.QROOM_PLATFORM = { apiBase: "https://api.example.com", storage: secureStorageAdapter }`。別オリジンのWebフロントエンドを使う場合は `QROOM_WEB_ORIGINS=https://app.example.com` をAPIサーバーに設定します。`QROOM_API_ORIGIN` はCSPの接続先に追加するAPI URLです。CORSはCapacitorのローカルオリジンと明示したWebオリジンだけ許可します。公開時はAPIもHTTPSにしてください。
 
 ホストは参加リンクを共有できます。リンクをWebで開くとルームコードが参加フォームに自動入力されます。Webでは共有API、ネイティブではCapacitor Shareを使います。WebViewがEventSourceに対応しない場合は `openRoomEvents` にネイティブ側のSSE実装を渡せます。
 

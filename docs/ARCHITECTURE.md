@@ -35,4 +35,5 @@ Game domain / rule engine → durable event log and snapshots
 - ユーザー入力はテキストとしてエスケープする。個人情報を初期MVPで収集しない。
 - ルームコードは参加権限を持つため、共有範囲に注意する。MVPはTLS終端を内包せず、公開時はHTTPSリバースプロキシが必要。
 - HTTPではホスト/プレイヤーBearer tokenが平文で送られる。信頼できるLANでの試用に限定し、外部公開時はTLSを必須とする。
+- CORSはCapacitor標準ローカルオリジンと `QROOM_WEB_ORIGINS` に列挙したWebオリジンだけを許可する。
 - ルームはメモリ上に最大1000件保持し、未接続で12時間更新がないルームを破棄する。サーバー再起動時の復元、切断参加者の整理、永続化は未実装。
