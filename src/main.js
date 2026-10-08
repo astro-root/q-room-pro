@@ -1,5 +1,5 @@
 import { Phase, RULES, activePlayers, canBuzz, orderedResults, reduceGame } from "./domain.js";
-import { buzzFeedback, exitNativeApp, getLaunchUrl, onAppResume, onAppUrlOpen, onNativeBackButton, openRoomEvents, readPreference, removePreference, request, requestFullscreen, shareRoomCode, writePreference } from "./platform.js";
+import { buzzFeedback, canRequestFullscreen, exitNativeApp, getLaunchUrl, onAppResume, onAppUrlOpen, onNativeBackButton, openRoomEvents, readPreference, removePreference, request, requestFullscreen, shareRoomCode, writePreference } from "./platform.js";
 import "./styles.css";
 
 const app = document.querySelector("#app");
@@ -115,7 +115,7 @@ function playerCard(player, index) {
 }
 
 function renderRoom() {
-  const host = `<header class="room-header"><div class="brand compact"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></div><div class="room-header-actions"><div class="room-code"><small>ROOM CODE</small><b>${game.roomId}</b></div><button class="secondary mode-button" data-action="copy-code">参加リンクを共有</button><button class="icon-button" data-action="fullscreen" title="全画面表示">⛶</button></div></header>`;
+  const host = `<header class="room-header"><div class="brand compact"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></div><div class="room-header-actions"><div class="room-code"><small>ROOM CODE</small><b>${game.roomId}</b></div><button class="secondary mode-button" data-action="copy-code">参加リンクを共有</button>${canRequestFullscreen() ? '<button class="icon-button" data-action="fullscreen" title="全画面表示">⛶</button>' : ""}</div></header>`;
   const controls = game.phase === Phase.READY && game.question === 0
     ? `<button class="primary" data-action="start" ${game.players.length ? "" : "disabled"}>ゲーム開始 <span>→</span></button>`
     : game.phase === Phase.BUZZED ? `<button class="judge correct" data-action="correct">○ 正解</button><button class="judge incorrect" data-action="incorrect">× 不正解</button>`

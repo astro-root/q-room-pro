@@ -2,6 +2,7 @@
 // domain can then be shared by the web app and a native WebView shell.
 const capacitor = globalThis.Capacitor;
 const nativeBridge = globalThis.QROOM_PLATFORM || {};
+export const isNativePlatform = Boolean(nativeBridge.isNative || capacitor?.isNativePlatform?.());
 
 export const apiBase = (nativeBridge.apiBase || globalThis.QROOM_API_BASE || "").replace(/\/$/, "");
 
@@ -92,6 +93,10 @@ export async function shareRoomCode(code) {
 export function requestFullscreen(element = document.documentElement) {
   if (nativeBridge.fullscreen) return nativeBridge.fullscreen();
   return element.requestFullscreen?.();
+}
+
+export function canRequestFullscreen() {
+  return Boolean(nativeBridge.fullscreen || (!isNativePlatform && globalThis.document?.documentElement?.requestFullscreen));
 }
 
 export function openRoomEvents(roomId) {
