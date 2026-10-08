@@ -8,8 +8,10 @@
 
 ## 状態遷移
 ```text
-READY --START--> QUESTION --BUZZ--> BUZZED --JUDGE(correct/incorrect)--> READY
-     ^                                                           |
+READY --START--> QUESTION --BUZZ--> BUZZED --JUDGE(correct)--> READY
+     ^                                        |
+     |                    JUDGE(incorrect)    +--> QUESTION (eligible players remain)
+     |                                        +--> READY (no eligible player remains)
      +------------------------------- NEXT -----------------------+
 QUESTION --NO_ANSWER / timeout--> READY
 READY / QUESTION / BUZZED --END--> FINISHED
@@ -20,7 +22,8 @@ FINISHED --RESET--> READY
 ## ルール
 - 7○3×: 正解1点、7○で勝利、3×で失格。
 - 10by10: 正解1点、10○で勝利、誤答による失格なし。
-- ペナルティ表示は誤答後から次の問題開始まで。
+- 誤答者は当該問題の再回答ができず、ほかに押せるプレイヤーがいれば同じ問題の受付を続ける。
+- ペナルティ表示は誤答後から次の問題開始まで。7○3×では3×で失格。
 - 拡張ルールはGameRuleの設定と独立した判定関数を追加する。UIに勝利条件を直接記述しない。
 
 ## 早押し

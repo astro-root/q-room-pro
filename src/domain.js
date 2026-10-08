@@ -14,7 +14,7 @@ export function createGame({ roomName, ruleId, names }) {
 export function activePlayers(game) { return game.players.filter((player) => !player.eliminated); }
 
 export function canBuzz(game, playerId) {
-  return game.phase === Phase.QUESTION && !game.buzzOrder.includes(playerId) && activePlayers(game).some((player) => player.id === playerId);
+  return game.phase === Phase.QUESTION && !game.buzzOrder.includes(playerId) && activePlayers(game).some((player) => player.id === playerId && !player.penalty);
 }
 
 export function reduceGame(game, action) {
@@ -43,7 +43,10 @@ export function reduceGame(game, action) {
     });
     const winner = players.find((player) => player.correct >= RULES[game.ruleId].winBy);
     const noPlayers = players.every((player) => player.eliminated);
-    return { ...game, players, phase: winner || noPlayers ? Phase.FINISHED : Phase.READY, buzzedPlayerId: null, message: winner ? `${winner.name} が勝利しました` : noPlayers ? "全員が失格しました" : action.correct ? "正解！次の問題へ" : "不正解。次の問題へ" };
+    const canContinueQuestion = players.some((player) => !player.eliminated && !player.penalty && !game.buzzOrder.includes(player.id));
+    const phase = winner || noPlayers ? Phase.FINISHED : action.correct || !canContinueQuestion ? Phase.READY : Phase.QUESTION;
+    const message = winner ? `${winner.name} が勝利しました` : noPlayers ? "全員が失格しました" : action.correct ? "正解！次の問題へ" : canContinueQuestion ? "不正解 · ほかのプレイヤーの回答を受付中" : "不正解 · 回答できるプレイヤーがいません";
+    return { ...game, players, phase, buzzedPlayerId: null, message };
   }
   if (action.type === "NEXT") {
     if (game.phase !== Phase.READY) return game;
