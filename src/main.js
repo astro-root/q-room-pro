@@ -1,6 +1,5 @@
 import { Phase, RULES, activePlayers, canBuzz, orderedResults, reduceGame } from "./domain.js";
 import { buzzFeedback, canRequestFullscreen, exitNativeApp, getLaunchUrl, onAppResume, onAppUrlOpen, onNativeBackButton, openRoomEvents, readPreference, removePreference, request, requestFullscreen, shareRoomCode, writePreference } from "./platform.js";
-import "./styles.css";
 
 const app = document.querySelector("#app");
 if ("serviceWorker" in navigator && !globalThis.QROOM_PLATFORM?.isNative && !globalThis.Capacitor?.isNativePlatform?.()) {
