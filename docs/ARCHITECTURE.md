@@ -13,7 +13,7 @@ Domain (src/domain.js: reducer, rules, scoring)
 
 `src/platform.js` が端末APIの境界で、UIとドメインはDOM以外のブラウザー機能へ直接依存しない。WebではPWAのアプリシェルをキャッシュし、ネイティブでは同じ画面をCapacitor WebViewで動かす。ネイティブ起動側は `globalThis.QROOM_PLATFORM` でAPI接続先、HTTP要求、非同期ストレージ、触覚、共有、イベントストリーム、ライフサイクルイベントを注入できる。Appプラグインで復帰時に最新状態を再取得し、Androidの戻るボタンを画面遷移へ結び付ける。セッショントークンはSecure Storageプラグインを通してiOS Keychain / Android Keystoreで保護する。APIサーバー側CSP接続先は `QROOM_API_ORIGIN` で指定する。ゲームの通信契約（HTTPコマンド + SSE）は共通である。
 
-ホストの共有操作はルームコード入りのURLを生成する。Webでは参加フォームへコードを引き継ぎ、ネイティブ共有シートでも同じURLを共有する。
+ホストの共有操作はWeb URLと `qroom://join?room=CODE` を生成する。Webでは参加フォームへコードを引き継ぎ、ネイティブ共有シートからWeb URLまたはアプリ用スキームを開ける。iOS / Android は App プラグインの launch URL と app URL event で受け取り、ルームコードを検証してから参加フォームへ渡す。
 
 ## 将来のオンライン構成
 ```text

@@ -20,6 +20,8 @@ globalThis.QROOM_PLATFORM = {
   },
   onBackButton: (handler) => App.addListener("backButton", handler),
   onAppResume: (handler) => App.addListener("appStateChange", ({ isActive }) => { if (isActive) handler(); }),
+  onAppUrlOpen: (handler) => App.addListener("appUrlOpen", ({ url }) => handler(url)),
+  getLaunchUrl: async () => (await App.getLaunchUrl())?.url,
   exitApp: () => App.exitApp(),
 };
 

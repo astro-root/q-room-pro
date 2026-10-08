@@ -1,5 +1,5 @@
 import { Phase, RULES, activePlayers, canBuzz, orderedResults, reduceGame } from "./domain.js";
-import { buzzFeedback, exitNativeApp, onAppResume, onNativeBackButton, openRoomEvents, readPreference, removePreference, request, requestFullscreen, shareRoomCode, writePreference } from "./platform.js";
+import { buzzFeedback, exitNativeApp, getLaunchUrl, onAppResume, onAppUrlOpen, onNativeBackButton, openRoomEvents, readPreference, removePreference, request, requestFullscreen, shareRoomCode, writePreference } from "./platform.js";
 import "./styles.css";
 
 const app = document.querySelector("#app");
@@ -9,7 +9,14 @@ if ("serviceWorker" in navigator && !globalThis.QROOM_PLATFORM?.isNative && !glo
 let game = null;
 let view = "home";
 let playerName = "プレイヤー";
-let pendingRoomCode = new URLSearchParams(globalThis.location.search).get("room")?.toUpperCase() || "";
+const validRoomCode = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/;
+function roomCodeFromUrl(value) {
+  try {
+    const code = new URL(value, globalThis.location.origin).searchParams.get("room")?.toUpperCase() || "";
+    return validRoomCode.test(code) ? code : "";
+  } catch { return ""; }
+}
+let pendingRoomCode = roomCodeFromUrl(globalThis.location.href);
 let session = null;
 let eventSource = null;
 let notice = "";
@@ -187,6 +194,16 @@ function closeRoomView() {
 }
 
 void onAppResume(() => { void refreshRoom(); });
+function openSharedRoom(url) {
+  const code = roomCodeFromUrl(url);
+  if (!code) return;
+  pendingRoomCode = code;
+  notice = "";
+  view = "join";
+  renderJoin();
+}
+void onAppUrlOpen(openSharedRoom);
+void getLaunchUrl()?.then((url) => { if (url) openSharedRoom(url); }).catch(() => {});
 void onNativeBackButton(async () => {
   if (view === "setup" || view === "join") {
     view = "home";
@@ -202,7 +219,7 @@ async function restoreSession() {
   playerName = await readPreference("qroom-player", "プレイヤー");
   let savedSession = null;
   try { savedSession = JSON.parse(await readPreference("qroom-session", "null")); } catch { /* Ignore malformed local session data. */ }
-  if (savedSession?.roomId && savedSession?.token) {
+  if (savedSession?.roomId && savedSession?.token && !validRoomCode.test(pendingRoomCode)) {
     try {
       const snapshot = await api(`/api/rooms/${savedSession.roomId}`);
       await connectRoom(snapshot, savedSession, savedSession.role === "player" ? "player" : "room");
@@ -211,7 +228,7 @@ async function restoreSession() {
       await removePreference("qroom-session");
     }
   }
-  if (/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/.test(pendingRoomCode)) {
+  if (validRoomCode.test(pendingRoomCode)) {
     view = "join";
     renderJoin();
     return;

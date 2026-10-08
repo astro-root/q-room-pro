@@ -64,7 +64,9 @@ export function buzzFeedback(duration = 18) {
 }
 
 export async function shareRoomCode(code) {
-  const text = `Q-Room Pro ルームコード: ${code}`;
+  const appUrl = new URL("qroom://join");
+  appUrl.searchParams.set("room", code);
+  const text = `Q-Room Pro ルームコード: ${code}${nativeBridge.isNative ? `\nアプリで開く: ${appUrl.href}` : ""}`;
   const joinUrl = new URL("/", apiBase || globalThis.location.origin);
   joinUrl.searchParams.set("room", code);
   if (nativeBridge.share) {
@@ -107,4 +109,12 @@ export function onAppResume(handler) {
 
 export function exitNativeApp() {
   return nativeBridge.exitApp?.();
+}
+
+export function onAppUrlOpen(handler) {
+  return nativeBridge.onAppUrlOpen?.(handler);
+}
+
+export function getLaunchUrl() {
+  return nativeBridge.getLaunchUrl?.();
 }

@@ -3,5 +3,5 @@
     <string name="app_name">Q-Room Pro</string>
     <string name="title_activity_main">Q-Room Pro</string>
     <string name="package_name">com.qroom.pro</string>
-    <string name="custom_url_scheme">com.qroom.pro</string>
+    <string name="custom_url_scheme">qroom</string>
 </resources>
