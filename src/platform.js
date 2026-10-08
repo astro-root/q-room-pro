@@ -65,24 +65,26 @@ export function buzzFeedback(duration = 18) {
 
 export async function shareRoomCode(code) {
   const text = `Q-Room Pro ルームコード: ${code}`;
+  const joinUrl = new URL("/", apiBase || globalThis.location.origin);
+  joinUrl.searchParams.set("room", code);
   if (nativeBridge.share) {
-    await nativeBridge.share({ title: "Q-Room Pro", text });
+    await nativeBridge.share({ title: "Q-Room Pro", text, url: joinUrl.href });
     return "共有しました";
   }
   const nativeShare = capacitor?.isNativePlatform?.() && capacitor?.Plugins?.Share;
   if (nativeShare?.share) {
-    await nativeShare.share({ title: "Q-Room Pro", text, dialogTitle: "ルームコードを共有" });
+    await nativeShare.share({ title: "Q-Room Pro", text, url: joinUrl.href, dialogTitle: "ルームに参加" });
     return "共有しました";
   }
   if (typeof navigator !== "undefined" && navigator.share) {
-    await navigator.share({ title: "Q-Room Pro", text });
+    await navigator.share({ title: "Q-Room Pro", text, url: joinUrl.href });
     return "共有しました";
   }
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(code);
-    return "ルームコードをコピーしました";
+    await navigator.clipboard.writeText(joinUrl.href);
+    return "参加リンクをコピーしました";
   }
-  return `ルームコード: ${code}`;
+  return `参加リンク: ${joinUrl.href}`;
 }
 
 export function requestFullscreen(element = document.documentElement) {

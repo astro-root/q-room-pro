@@ -22,7 +22,7 @@ HTTPSで開くWebアプリはPWAとしてインストールできます。画面
 
 例: `globalThis.QROOM_PLATFORM = { apiBase: "https://api.example.com", storage: secureStorageAdapter }`。APIサーバーには同じオリジンを `QROOM_API_ORIGIN` 環境変数で設定してください（CSPの接続先に追加されます）。CORSはBearer認証を使うAPI向けに有効です。公開時はAPIもHTTPSにしてください。
 
-Webでは振動・共有の標準APIを使い、ネイティブではCapacitorプラグインを使います。WebViewがEventSourceに対応しない場合は `openRoomEvents` にネイティブ側のSSE実装を渡せます。
+ホストは参加リンクを共有できます。リンクをWebで開くとルームコードが参加フォームに自動入力されます。Webでは共有API、ネイティブではCapacitor Shareを使います。WebViewがEventSourceに対応しない場合は `openRoomEvents` にネイティブ側のSSE実装を渡せます。
 
 ネイティブ資産の同期:
 

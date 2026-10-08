@@ -9,6 +9,7 @@ if ("serviceWorker" in navigator && !globalThis.QROOM_PLATFORM?.isNative && !glo
 let game = null;
 let view = "home";
 let playerName = "プレイヤー";
+let pendingRoomCode = new URLSearchParams(globalThis.location.search).get("room")?.toUpperCase() || "";
 let session = null;
 let eventSource = null;
 let notice = "";
@@ -86,7 +87,7 @@ function renderSetup() {
 }
 
 function renderJoin() {
-  app.innerHTML = `<main class="setup-shell"><button class="back" data-action="home">← ホーム</button><div class="eyebrow">JOIN A ROOM · 01</div><h1>ゲームに<br>参加する</h1><form id="join-form" class="setup-form"><label>ルームコード<input name="code" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="例：A2BC34DE" required /></label><label>プレイヤー名<input name="name" maxlength="24" autocomplete="name" value="${esc(playerName)}" required /></label><button class="primary large" type="submit">参加する <span>→</span></button><p class="form-error" role="alert">${esc(notice)}</p></form></main>`;
+  app.innerHTML = `<main class="setup-shell"><button class="back" data-action="home">← ホーム</button><div class="eyebrow">JOIN A ROOM · 01</div><h1>ゲームに<br>参加する</h1><form id="join-form" class="setup-form"><label>ルームコード<input name="code" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="例：A2BC34DE" value="${esc(pendingRoomCode)}" required /></label><label>プレイヤー名<input name="name" maxlength="24" autocomplete="name" value="${esc(playerName)}" required /></label><button class="primary large" type="submit">参加する <span>→</span></button><p class="form-error" role="alert">${esc(notice)}</p></form></main>`;
   document.querySelector("#join-form").addEventListener("submit", (event) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -94,6 +95,7 @@ function renderJoin() {
     const name = String(data.get("name")).trim();
     void api(`/api/rooms/${encodeURIComponent(roomId)}/join`, { name }).then(async (result) => {
       playerName = name; await writePreference("qroom-player", name); notice = "";
+      pendingRoomCode = "";
       await connectRoom(result, { roomId, role: "player", token: result.playerToken, playerId: result.playerId }, "player");
     }).catch((error) => { notice = error.message; renderJoin(); });
   });
@@ -106,7 +108,7 @@ function playerCard(player, index) {
 }
 
 function renderRoom() {
-  const host = `<header class="room-header"><div class="brand compact"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></div><div class="room-header-actions"><div class="room-code"><small>ROOM CODE</small><b>${game.roomId}</b></div><button class="secondary mode-button" data-action="copy-code">コードを共有</button><button class="icon-button" data-action="fullscreen" title="全画面表示">⛶</button></div></header>`;
+  const host = `<header class="room-header"><div class="brand compact"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></div><div class="room-header-actions"><div class="room-code"><small>ROOM CODE</small><b>${game.roomId}</b></div><button class="secondary mode-button" data-action="copy-code">参加リンクを共有</button><button class="icon-button" data-action="fullscreen" title="全画面表示">⛶</button></div></header>`;
   const controls = game.phase === Phase.READY && game.question === 0
     ? `<button class="primary" data-action="start" ${game.players.length ? "" : "disabled"}>ゲーム開始 <span>→</span></button>`
     : game.phase === Phase.BUZZED ? `<button class="judge correct" data-action="correct">○ 正解</button><button class="judge incorrect" data-action="incorrect">× 不正解</button>`
@@ -208,6 +210,11 @@ async function restoreSession() {
     } catch {
       await removePreference("qroom-session");
     }
+  }
+  if (/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/.test(pendingRoomCode)) {
+    view = "join";
+    renderJoin();
+    return;
   }
   render();
 }

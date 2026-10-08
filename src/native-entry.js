@@ -12,7 +12,7 @@ globalThis.QROOM_PLATFORM = {
   ...(globalThis.QROOM_PLATFORM || {}),
   isNative: Capacitor.isNativePlatform(),
   haptics: { buzz: () => Haptics.impact({ style: ImpactStyle.Light }) },
-  share: ({ title, text }) => Share.share({ title, text, dialogTitle: "共有" }),
+  share: ({ title, text, url }) => Share.share({ title, text, url, dialogTitle: "ルームに参加" }),
   storage: {
     get: (key) => SecureStorage.getItem(key),
     set: (key, value) => SecureStorage.setItem(key, value),
