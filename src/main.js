@@ -19,6 +19,7 @@ function roomCodeFromUrl(value) {
 let pendingRoomCode = roomCodeFromUrl(globalThis.location.href);
 let session = null;
 let eventSource = null;
+let reconnectTimer = null;
 let notice = "";
 let currentVersion = 0;
 const QUESTION_SECONDS = 20;
@@ -54,10 +55,37 @@ async function connectRoom(snapshot, newSession, nextView) {
   await writePreference("qroom-session", JSON.stringify(session));
   view = nextView;
   applySnapshot(snapshot);
+  if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
   if (eventSource) eventSource.close();
+  connectRoomEvents();
+}
+
+function connectRoomEvents() {
+  if (!session) return;
   eventSource = openRoomEvents(session.roomId);
-  eventSource.onmessage = (event) => { notice = ""; applySnapshot(JSON.parse(event.data)); };
-  eventSource.onerror = () => { notice = "再接続中… · ネットワークを確認してください"; render(); };
+  eventSource.onopen = () => {
+    if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
+    if (notice) { notice = ""; render(); }
+  };
+  eventSource.onmessage = (event) => {
+    if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
+    notice = "";
+    applySnapshot(JSON.parse(event.data));
+  };
+  eventSource.onerror = () => {
+    notice = "再接続中… · ネットワークを確認してください";
+    render();
+    if (reconnectTimer === null) reconnectTimer = window.setTimeout(async () => {
+      reconnectTimer = null;
+      const activeSession = session;
+      if (!activeSession) return;
+      await refreshRoom();
+      if (session === activeSession) {
+        eventSource?.close();
+        connectRoomEvents();
+      }
+    }, 3000);
+  };
 }
 
 async function dispatch(action) {
@@ -187,7 +215,9 @@ async function refreshRoom() {
 }
 
 function closeRoomView() {
-  eventSource?.close(); eventSource = null; session = null; game = null;
+  eventSource?.close(); eventSource = null;
+  if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
+  session = null; game = null;
   void removePreference("qroom-session");
   view = "home";
   render();
