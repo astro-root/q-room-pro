@@ -4,6 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:web": "node scripts/build-web.mjs",
+    "cap:sync": "npm run build:web && cap sync"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/share": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0",
+    "esbuild": "^0.25.0"
+  },
+  "optionalDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/ios": "^8.0.0"
   }
 }

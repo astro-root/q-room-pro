@@ -11,7 +11,7 @@ const apiOrigin = (process.env.QROOM_API_ORIGIN || "").replace(/\/$/, "");
 const rooms = new Map();
 const requestWindows = new Map();
 const mime = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".webmanifest": "application/manifest+json; charset=utf-8", ".svg": "image/svg+xml" };
-const staticFiles = new Set(["index.html", "manifest.webmanifest", "service-worker.js", "icon.svg"]);
+const staticFiles = new Set(["index.html", "manifest.webmanifest", "service-worker.js", "icon.svg", "runtime-config.js"]);
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function allowRequest(request, bucket, limit) {
