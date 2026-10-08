@@ -16,12 +16,13 @@ HTTPSで開くWebアプリはPWAとしてインストールできます。画面
 
 ## VercelへのWebデプロイ
 
-このリポジトリには自作バックエンド `server.js` が含まれています。外部のデータベースサービスは使わず、無料の Render Web Service でこの Node.js サーバーを動かし、Vercel には Web 画面を配置する構成です。`render.yaml` が無料プランのバックエンドを定義します。
+このリポジトリには自作バックエンド `server.js` が含まれています。外部のデータベースサービスは使わず、無料の Render Web Service でこの Node.js サーバーを動かし、Vercel には Web 画面を配置する構成です。`render.yaml` が無料プランのバックエンドを定義します。最初はバックエンド未接続でも Vercel に画面を公開でき、画面には未接続の案内が表示されます。
 
-1. Vercel の Project Settings で、このプロジェクトの本番ドメインを確認します。
-2. Render で **New → Blueprint** を選び、この GitHub リポジトリを接続して `render.yaml` からサービスを作成します。プランは Free を選びます。
-3. Render のサービス URL（例: `https://q-room-pro-backend.onrender.com`）が発行されたら、Render の Environment で `QROOM_WEB_ORIGINS` に手順1の Vercel オリジンを設定します（`https://` を含むドメインだけ）。保存後に再デプロイします。
-4. Vercel の Environment Variables に `QROOM_API_BASE` として Render のサービス URL を設定し、Vercel を再デプロイします。HTTPやパスを含む値はビルド時に拒否されます。
+1. GitHub の main を Vercel にデプロイします。最初は `QROOM_API_BASE` が未設定でもビルドでき、画面が表示されます。
+2. Vercel の Project Settings で本番ドメインを確認します。
+3. Render で **New → Blueprint** を選び、この GitHub リポジトリを接続して `render.yaml` からサービスを作成します。プランは Free を選びます。
+4. Render のサービス URL（例: `https://q-room-pro-backend.onrender.com`）が発行されたら、Render の Environment で `QROOM_WEB_ORIGINS` に手順2の Vercel オリジンを設定します（`https://` を含むドメインだけ）。保存後に再デプロイします。
+5. Vercel の Environment Variables に `QROOM_API_BASE` として Render のサービス URL を設定し、Vercel を再デプロイします。HTTPやパスを含む値はビルド時に拒否されます。
 
 無料 Render サービスは15分間リクエストがないと停止し、次のアクセス時に起動するまで約1分かかる場合があります。ルーム状態はメモリ上だけにあるため、停止・再起動・再デプロイで進行中のルームは消えます。これは無料で試すための構成で、常時稼働やルームの永続保存は提供しません。[Render無料サービスの制限](https://render.com/docs/free)
 

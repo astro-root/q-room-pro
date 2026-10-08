@@ -29,6 +29,7 @@ let timerDeadline = 0;
 let clockInterval = null;
 const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 async function api(path, body, token) {
+  if (globalThis.QROOM_API_UNCONFIGURED) throw new Error("バックエンド未接続です。Renderのサーバーを作成後、そのURLをVercelの QROOM_API_BASE に設定してください。");
   const response = await request(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "通信に失敗しました");
@@ -112,7 +113,7 @@ async function dispatch(action) {
 }
 
 function renderHome() {
-  app.innerHTML = `<main class="home-shell"><header class="brand"><span class="brand-mark">Q</span><div><strong>Q-Room <span>Pro</span></strong><small>競技クイズルーム</small></div></header><section class="hero"><div class="eyebrow">FAST · FAIR · FOCUSED</div><h1>クイズに、<br><em>集中しよう。</em></h1><p>早押しからスコア管理まで。ゲームの進行を、ひとつのルームに。</p>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="primary large" data-action="create">ルームを作成 <span>→</span></button><button class="secondary large join-entry" data-action="join-view">ルームに参加 <span>↗</span></button><div class="hero-note"><span class="pulse"></span> ルームコードで参加 · 同期はリアルタイム</div></section><section class="feature-row"><div><b>01</b><span>瞬時に反応する<br>早押しボタン</span></div><div><b>02</b><span>ルールに沿った<br>スコア管理</span></div><div><b>03</b><span>司会もプレイヤーも<br>同じルームで</span></div></section><footer>Q-ROOM PRO <span>EARLY MVP</span></footer></main>`;
+  app.innerHTML = `<main class="home-shell"><header class="brand"><span class="brand-mark">Q</span><div><strong>Q-Room <span>Pro</span></strong><small>競技クイズルーム</small></div></header><section class="hero"><div class="eyebrow">FAST · FAIR · FOCUSED</div><h1>クイズに、<br><em>集中しよう。</em></h1><p>早押しからスコア管理まで。ゲームの進行を、ひとつのルームに。</p>${globalThis.QROOM_API_UNCONFIGURED ? '<div class="connection-notice" role="status">画面は公開済みです。ゲームを動かすには、Renderでバックエンドを作成してVercelへ接続してください。</div>' : ""}${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="primary large" data-action="create">ルームを作成 <span>→</span></button><button class="secondary large join-entry" data-action="join-view">ルームに参加 <span>↗</span></button><div class="hero-note"><span class="pulse"></span> ルームコードで参加 · 同期はリアルタイム</div></section><section class="feature-row"><div><b>01</b><span>瞬時に反応する<br>早押しボタン</span></div><div><b>02</b><span>ルールに沿った<br>スコア管理</span></div><div><b>03</b><span>司会もプレイヤーも<br>同じルームで</span></div></section><footer>Q-ROOM PRO <span>EARLY MVP</span></footer></main>`;
 }
 
 function renderSetup() {

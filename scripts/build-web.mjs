@@ -28,7 +28,7 @@ if (nativeBuild && configuredWebBase) {
     throw new Error("QROOM_WEB_BASE はパスを含まない HTTPS オリジンを指定してください");
   }
 }
-const runtimeConfig = `globalThis.QROOM_API_BASE = ${JSON.stringify(configuredApiBase)};\nglobalThis.QROOM_WEB_BASE = ${JSON.stringify(configuredWebBase)};\n${nativeBuild ? 'globalThis.QROOM_PLATFORM = { ...(globalThis.QROOM_PLATFORM || {}), isNative: true, apiBase: globalThis.QROOM_API_BASE, webBase: globalThis.QROOM_WEB_BASE };\n' : ""}`;
+const runtimeConfig = `globalThis.QROOM_API_BASE = ${JSON.stringify(configuredApiBase)};\nglobalThis.QROOM_WEB_BASE = ${JSON.stringify(configuredWebBase)};\nglobalThis.QROOM_API_UNCONFIGURED = ${process.env.QROOM_VERCEL_API_UNCONFIGURED === "1"};\n${nativeBuild ? 'globalThis.QROOM_PLATFORM = { ...(globalThis.QROOM_PLATFORM || {}), isNative: true, apiBase: globalThis.QROOM_API_BASE, webBase: globalThis.QROOM_WEB_BASE };\n' : ""}`;
 await writeFile(resolve(outputDirectory, "runtime-config.js"), runtimeConfig);
 
 if (nativeBuild) {
