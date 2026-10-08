@@ -16,7 +16,7 @@ HTTPSで開くWebアプリはPWAとしてインストールできます。画面
 
 ## ネイティブアプリの土台
 
-画面とドメインはES Modulesのまま共有し、`src/platform.js` に保存・振動・共有・全画面・イベント接続などの端末差を集めています。Capacitor設定、Android/iOSプロジェクト、`www/` へのビルド処理を追加しました。ストア署名・配布設定と実機検証はまだです。
+画面とドメインはES Modulesのまま共有し、`src/platform.js` に保存・振動・共有・全画面・イベント接続などの端末差を集めています。Capacitor設定、Android/iOSプロジェクト、`www/` へのビルド処理を追加しました。ランチャーアイコンと起動画面は Web の SVG マークから依存なしで生成します。ストア署名・配布設定と実機検証はまだです。
 
 ネイティブ専用バンドルはCapacitor App / Haptics / ShareとSecure Storageを利用します。セッショントークンはiOS KeychainまたはAndroid Keystoreで暗号化して保存します。Androidの戻るボタンは画面状態に応じてホームへ戻る、ルーム退出を確認する、アプリを閉じる動作にしています。アプリ復帰時はルームの最新状態を再取得します。追加の端末実装は `globalThis.QROOM_PLATFORM` で注入でき、`request(url, options)`、非同期 `storage.get/set/remove`、`haptics.buzz(ms)`、`share({title,text})`、`openRoomEvents(url)` を差し替えられます。イベント接続は `onmessage` / `onerror` を設定でき、`close()` を持つオブジェクトを返してください。
 
