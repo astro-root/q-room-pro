@@ -11,6 +11,7 @@
 READY --START--> QUESTION --BUZZ--> BUZZED --JUDGE(correct/incorrect)--> READY
      ^                                                           |
      +------------------------------- NEXT -----------------------+
+QUESTION --NO_ANSWER / timeout--> READY
 READY / QUESTION / BUZZED --END--> FINISHED
 FINISHED --RESET--> READY
 ```

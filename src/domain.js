@@ -27,6 +27,10 @@ export function reduceGame(game, action) {
     const buzzOrder = [...game.buzzOrder, action.playerId];
     return { ...game, phase: Phase.BUZZED, buzzedPlayerId: action.playerId, buzzOrder, message: `${game.players.find((player) => player.id === action.playerId)?.name} が押しました` };
   }
+  if (action.type === "NO_ANSWER") {
+    if (game.phase !== Phase.QUESTION) return game;
+    return { ...game, phase: Phase.READY, buzzedPlayerId: null, buzzOrder: [], message: "時間切れ · 回答なし" };
+  }
   if (action.type === "JUDGE") {
     if (game.phase !== Phase.BUZZED) return game;
     const players = game.players.map((player) => {
