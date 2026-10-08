@@ -11,6 +11,8 @@ Domain (src/domain.js: reducer, rules, scoring)
 
 画面は即時の押下反応のため早押しを楽観表示し、サーバー配信状態で確定する。HTTP POSTで操作を送り、SSEで全端末にスナップショットを配る。Nodeのイベントループが一つのルームの操作を逐次適用する。ルーム、参加者トークン、タイマーはメモリ上にあり、再起動後は復元されない。
 
+`src/platform.js` が端末APIの境界で、UIとドメインはDOM以外のブラウザー機能へ直接依存しない。WebではPWAのアプリシェルをキャッシュし、ネイティブでは同じ画面をCapacitor WebViewで動かす。ネイティブのAPI接続先は起動時の `globalThis.QROOM_API_BASE`、APIサーバー側CSP接続先は `QROOM_API_ORIGIN` で指定する。ゲームの通信契約（HTTPコマンド + SSE）は共通である。
+
 ## 将来のオンライン構成
 ```text
 Web / iOS / Android clients

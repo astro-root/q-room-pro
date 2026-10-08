@@ -1,10 +1,14 @@
 import { Phase, RULES, activePlayers, canBuzz, orderedResults, reduceGame } from "./domain.js";
+import { apiBase, buzzFeedback, openRoomEvents, readPreference, removePreference, requestFullscreen, shareRoomCode, writePreference } from "./platform.js";
 import "./styles.css";
 
 const app = document.querySelector("#app");
+if ("serviceWorker" in navigator && !globalThis.Capacitor?.isNativePlatform?.()) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js").catch(() => {}), { once: true });
+}
 let game = null;
 let view = "home";
-let playerName = localStorage.getItem("qroom-player") || "プレイヤー";
+let playerName = readPreference("qroom-player", "プレイヤー");
 let session = null;
 let eventSource = null;
 let notice = "";
@@ -15,7 +19,7 @@ let timerDeadline = 0;
 let clockInterval = null;
 const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 async function api(path, body, token) {
-  const response = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  const response = await fetch(`${apiBase}${path}`, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "通信に失敗しました");
   return result;
@@ -39,11 +43,11 @@ function connectRoom(snapshot, newSession, nextView) {
   currentVersion = 0;
   session = newSession;
   notice = "";
-  localStorage.setItem("qroom-session", JSON.stringify(session));
+  writePreference("qroom-session", JSON.stringify(session));
   view = nextView;
   applySnapshot(snapshot);
   if (eventSource) eventSource.close();
-  eventSource = new EventSource(`/api/rooms/${session.roomId}/events`);
+  eventSource = openRoomEvents(session.roomId);
   eventSource.onmessage = (event) => { notice = ""; applySnapshot(JSON.parse(event.data)); };
   eventSource.onerror = () => { notice = "再接続中… · ネットワークを確認してください"; render(); };
 }
@@ -89,7 +93,7 @@ function renderJoin() {
     const roomId = String(data.get("code")).trim().toUpperCase();
     const name = String(data.get("name")).trim();
     void api(`/api/rooms/${encodeURIComponent(roomId)}/join`, { name }).then((result) => {
-      playerName = name; localStorage.setItem("qroom-player", name); notice = "";
+      playerName = name; writePreference("qroom-player", name); notice = "";
       connectRoom(result, { roomId, role: "player", token: result.playerToken, playerId: result.playerId }, "player");
     }).catch((error) => { notice = error.message; renderJoin(); });
   });
@@ -133,19 +137,18 @@ app.addEventListener("click", (event) => {
   if (action === "incorrect") dispatch({ type: "JUDGE", correct: false });
   if (action === "no-answer") dispatch({ type: "NO_ANSWER" });
   // Pointer users are handled on pointerdown; this fallback supports assistive click activation.
-  if (action === "buzz" && event.detail === 0) { if (navigator.vibrate) navigator.vibrate(18); dispatch({ type: "BUZZ", playerId: id }); }
+  if (action === "buzz" && event.detail === 0) { buzzFeedback(); dispatch({ type: "BUZZ", playerId: id }); }
   if (action === "end") dispatch({ type: "END" });
   if (action === "reset") dispatch({ type: "RESET" });
-  if (action === "fullscreen") document.documentElement.requestFullscreen?.();
+  if (action === "fullscreen") requestFullscreen();
   if (action === "copy-code") {
-    if (!navigator.clipboard?.writeText) { notice = `ルームコード: ${game.roomId}`; render(); }
-    else void navigator.clipboard.writeText(game.roomId).then(() => { notice = "ルームコードをコピーしました"; render(); }).catch(() => { notice = `ルームコード: ${game.roomId}`; render(); });
+    void shareRoomCode(game.roomId).then((message) => { notice = message; render(); }).catch(() => { notice = `ルームコード: ${game.roomId}`; render(); });
   }
   if (action === "leave-room") {
     event.preventDefault();
     if (event.target.closest("[data-action='leave-room']")?.tagName === "BUTTON" && !window.confirm("ルーム接続を終了しますか？")) return;
     if (event.target.closest("[data-action='leave-room']")?.tagName === "A" && session?.role === "host" && !window.confirm("ルーム画面を終了しますか？参加者との接続も閉じます。")) return;
-    eventSource?.close(); eventSource = null; session = null; game = null; localStorage.removeItem("qroom-session"); view = "home"; render();
+    eventSource?.close(); eventSource = null; session = null; game = null; removePreference("qroom-session"); view = "home"; render();
   }
 });
 
@@ -153,7 +156,7 @@ app.addEventListener("pointerdown", (event) => {
   const button = event.target.closest(".player-buzz:not(:disabled)");
   if (!button) return;
   button.classList.add("pressed");
-  if (navigator.vibrate) navigator.vibrate(18);
+  buzzFeedback();
   dispatch({ type: "BUZZ", playerId: button.dataset.id });
 });
 app.addEventListener("pointerup", () => document.querySelectorAll(".player-buzz.pressed").forEach((button) => button.classList.remove("pressed")));
@@ -162,7 +165,7 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "Space" && session?.playerId && canBuzz(game, session.playerId)) void dispatch({ type: "BUZZ", playerId: session.playerId });
 });
 
-const savedSession = (() => { try { return JSON.parse(localStorage.getItem("qroom-session") || "null"); } catch { return null; } })();
+const savedSession = (() => { try { return JSON.parse(readPreference("qroom-session", "null")); } catch { return null; } })();
 if (savedSession?.roomId && savedSession?.token) {
-  void api(`/api/rooms/${savedSession.roomId}`).then((snapshot) => connectRoom(snapshot, savedSession, savedSession.role === "player" ? "player" : "room")).catch(() => { localStorage.removeItem("qroom-session"); renderHome(); });
+  void api(`/api/rooms/${savedSession.roomId}`).then((snapshot) => connectRoom(snapshot, savedSession, savedSession.role === "player" ? "player" : "room")).catch(() => { removePreference("qroom-session"); renderHome(); });
 } else render();

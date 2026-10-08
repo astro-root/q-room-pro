@@ -7,9 +7,11 @@ import { Phase, RULES, createGame, reduceGame } from "./src/domain.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const port = Number(process.env.PORT || 8000);
+const apiOrigin = (process.env.QROOM_API_ORIGIN || "").replace(/\/$/, "");
 const rooms = new Map();
 const requestWindows = new Map();
-const mime = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml" };
+const mime = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".webmanifest": "application/manifest+json; charset=utf-8", ".svg": "image/svg+xml" };
+const staticFiles = new Set(["index.html", "manifest.webmanifest", "service-worker.js", "icon.svg"]);
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function allowRequest(request, bucket, limit) {
@@ -25,7 +27,7 @@ function allowRequest(request, bucket, limit) {
 }
 
 function json(response, status, value) {
-  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" });
+  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" });
   response.end(JSON.stringify(value));
 }
 
@@ -91,13 +93,13 @@ function hostAuthorized(room, request) {
 
 async function serveStatic(request, response, pathname) {
   const relative = pathname === "/" ? "index.html" : decodeURIComponent(pathname.slice(1));
-  if (relative !== "index.html" && !relative.startsWith("src/")) return json(response, 404, { error: "見つかりません" });
+  if (!staticFiles.has(relative) && !relative.startsWith("src/")) return json(response, 404, { error: "見つかりません" });
   const file = resolve(root, relative);
-  const allowedRoot = relative === "index.html" ? root : resolve(root, "src");
+  const allowedRoot = relative.startsWith("src/") ? resolve(root, "src") : root;
   if (file !== allowedRoot && !file.startsWith(allowedRoot + sep)) return json(response, 404, { error: "見つかりません" });
   try {
     const contents = await readFile(file);
-    response.writeHead(200, { "Content-Type": mime[extname(file)] || "application/octet-stream", "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" });
+    response.writeHead(200, { "Content-Type": mime[extname(file)] || "application/octet-stream", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "Content-Security-Policy": `default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' capacitor: http://localhost https://localhost ${apiOrigin}; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'` });
     response.end(contents);
   } catch {
     json(response, 404, { error: "見つかりません" });
@@ -108,6 +110,10 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, "http://localhost");
   const path = url.pathname;
   try {
+    if (request.method === "OPTIONS" && path.startsWith("/api/")) {
+      response.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Max-Age": "600" });
+      return response.end();
+    }
     if (request.method === "POST" && path === "/api/rooms") {
       if (!allowRequest(request, "create", 10)) return json(response, 429, { error: "しばらく待ってからもう一度お試しください" });
       if (rooms.size >= 1000) return json(response, 503, { error: "現在ルームを作成できません。しばらく待ってください" });
@@ -128,7 +134,7 @@ const server = createServer(async (request, response) => {
     if (request.method === "GET" && eventMatch) {
       const room = rooms.get(eventMatch[1]);
       if (!room) return json(response, 404, { error: "ルームが見つかりません" });
-      response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" });
+      response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", "Access-Control-Allow-Origin": "*", Connection: "keep-alive", "X-Accel-Buffering": "no", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" });
       response.write(`data: ${JSON.stringify(publicRoom(room))}\n\n`);
       room.listeners.add(response);
       const heartbeat = setInterval(() => response.write(": keep-alive\n\n"), 20_000);

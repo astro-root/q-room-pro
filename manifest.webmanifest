@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "Q-Room Pro",
+  "short_name": "Q-Room",
+  "description": "競技クイズの早押しとスコア管理",
+  "lang": "ja",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101318",
+  "theme_color": "#101318",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
