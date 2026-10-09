@@ -5,10 +5,17 @@ export const RULES = {
   tenByTen: { id: "tenByTen", name: "10by10", winBy: 10, missLimit: null, score: 1 },
 };
 
-export function createGame({ roomName, ruleId, names }) {
-  const rule = RULES[ruleId] ?? RULES.sevenThree;
+export function ruleForGame(game) {
+  if (game.ruleId === "custom") return { id: "custom", name: `${game.winBy}○${game.missLimit}×`, winBy: game.winBy, missLimit: game.missLimit, score: 1 };
+  return RULES[game.ruleId] ?? RULES.sevenThree;
+}
+
+export function createGame({ roomName, ruleId, winBy, missLimit, names }) {
+  const rule = ruleId === "custom" && Number.isInteger(winBy) && winBy >= 1 && winBy <= 50 && Number.isInteger(missLimit) && missLimit >= 1 && missLimit <= 20
+    ? { id: "custom", name: `${winBy}○${missLimit}×`, winBy, missLimit, score: 1 }
+    : RULES[ruleId] ?? RULES.sevenThree;
   const players = names.map((name, index) => ({ id: `p${index + 1}`, name: name.trim(), correct: 0, incorrect: 0, score: 0, penalty: false, eliminated: false }));
-  return { roomName: roomName.trim() || "練習ルーム", roomId: Math.random().toString(36).slice(2, 8).toUpperCase(), ruleId: rule.id, phase: Phase.READY, question: 0, players, buzzedPlayerId: null, buzzOrder: [], message: "ゲーム開始を待っています" };
+  return { roomName: roomName.trim() || "練習ルーム", roomId: Math.random().toString(36).slice(2, 8).toUpperCase(), ruleId: rule.id, ...(rule.id === "custom" ? { winBy: rule.winBy, missLimit: rule.missLimit } : {}), phase: Phase.READY, question: 0, players, buzzedPlayerId: null, buzzOrder: [], message: "ゲーム開始を待っています" };
 }
 
 export function activePlayers(game) { return game.players.filter((player) => !player.eliminated); }
@@ -33,15 +40,16 @@ export function reduceGame(game, action) {
   }
   if (action.type === "JUDGE") {
     if (game.phase !== Phase.BUZZED) return game;
+    const rule = ruleForGame(game);
     const players = game.players.map((player) => {
       if (player.id !== game.buzzedPlayerId) return player;
       const updated = action.correct
-        ? { ...player, correct: player.correct + 1, score: player.score + RULES[game.ruleId].score }
+        ? { ...player, correct: player.correct + 1, score: player.score + rule.score }
         : { ...player, incorrect: player.incorrect + 1 };
-      const eliminated = RULES[game.ruleId].missLimit !== null && updated.incorrect >= RULES[game.ruleId].missLimit;
+      const eliminated = rule.missLimit !== null && updated.incorrect >= rule.missLimit;
       return { ...updated, eliminated, penalty: !action.correct && !eliminated };
     });
-    const winner = players.find((player) => player.correct >= RULES[game.ruleId].winBy);
+    const winner = players.find((player) => player.correct >= rule.winBy);
     const noPlayers = players.every((player) => player.eliminated);
     const canContinueQuestion = players.some((player) => !player.eliminated && !player.penalty && !game.buzzOrder.includes(player.id));
     const phase = winner || noPlayers ? Phase.FINISHED : action.correct || !canContinueQuestion ? Phase.READY : Phase.QUESTION;
@@ -67,5 +75,6 @@ export function reduceGame(game, action) {
 }
 
 export function orderedResults(game) {
-  return [...game.players].sort((a, b) => Number(b.correct >= RULES[game.ruleId].winBy) - Number(a.correct >= RULES[game.ruleId].winBy) || b.score - a.score || b.correct - a.correct || a.incorrect - b.incorrect);
+  const rule = ruleForGame(game);
+  return [...game.players].sort((a, b) => Number(b.correct >= rule.winBy) - Number(a.correct >= rule.winBy) || b.score - a.score || b.correct - a.correct || a.incorrect - b.incorrect);
 }

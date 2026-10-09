@@ -37,6 +37,8 @@
 .keyboard-hint{color:#78818d;font:9px 'DM Mono',monospace;letter-spacing:.04em}
 .score-edit{border:1px solid #3b444e;border-radius:6px;background:#232831;color:#adb4bf;padding:5px 7px;font-size:9px}
 .score-edit:hover{border-color:var(--lime);color:var(--lime)}
+.custom-rule-fields{display:grid;gap:16px}
+.custom-rule-fields[hidden]{display:none}
 .connection-status{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:100px;color:#a5adb8;font:9px 'DM Mono',monospace;white-space:nowrap}
 .connection-status i{width:7px;height:7px;border-radius:50%;background:#89919d}
 .connection-status.connected i{background:var(--lime);box-shadow:0 0 10px #d4fc6360}

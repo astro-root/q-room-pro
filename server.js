@@ -140,11 +140,15 @@ const server = createServer(async (request, response) => {
       if (rooms.size >= 1000) return json(response, 503, { error: "現在ルームを作成できません。しばらく待ってください" });
       const body = await readBody(request);
       const roomName = typeof body.roomName === "string" ? body.roomName.trim().slice(0, 40) : "";
-      const ruleId = Object.hasOwn(RULES, body.ruleId) ? body.ruleId : "sevenThree";
+      const ruleId = body.ruleId ?? "sevenThree";
       if (!roomName) return json(response, 400, { error: "ルーム名を入力してください" });
+      if (ruleId === "custom" && (!Number.isInteger(body.winBy) || body.winBy < 1 || body.winBy > 50 || !Number.isInteger(body.missLimit) || body.missLimit < 1 || body.missLimit > 20)) {
+        return json(response, 400, { error: "カスタムルールは正解数1〜50、失格となる誤答数1〜20で指定してください" });
+      }
+      if (ruleId !== "custom" && !Object.hasOwn(RULES, ruleId)) return json(response, 400, { error: "ゲームルールが不正です" });
       let roomId;
       do { roomId = makeCode(); } while (rooms.has(roomId));
-      const game = createGame({ roomName, ruleId, names: [] });
+      const game = createGame({ roomName, ruleId, winBy: body.winBy, missLimit: body.missLimit, names: [] });
       game.roomId = roomId;
       const room = { game, hostToken: randomBytes(32).toString("base64url"), version: 1, questionDeadline: null, questionTimer: null, undoHistory: [], listeners: new Set(), players: new Map(), updatedAt: Date.now() };
       rooms.set(roomId, room);
