@@ -61,7 +61,7 @@ function makeCode() {
 }
 
 function publicRoom(room) {
-  return { game: room.game, version: room.version, questionDeadline: room.questionDeadline, canUndo: Boolean(room.undoGame) };
+  return { game: room.game, version: room.version, questionDeadline: room.questionDeadline, canUndo: room.undoHistory.length > 0, undoCount: room.undoHistory.length };
 }
 
 function broadcast(room) {
@@ -96,7 +96,7 @@ function applyAction(room, action) {
   const next = reduceGame(previous, action);
   if (next === previous) return false;
   room.game = next;
-  if (action.type === "NO_ANSWER") room.undoGame = null;
+  if (action.type === "NO_ANSWER") room.undoHistory = [];
   if (next.phase === Phase.QUESTION && previous.phase !== Phase.QUESTION) setQuestionTimer(room);
   else if (next.phase !== Phase.QUESTION) stopQuestionTimer(room);
   room.version += 1;
@@ -146,7 +146,7 @@ const server = createServer(async (request, response) => {
       do { roomId = makeCode(); } while (rooms.has(roomId));
       const game = createGame({ roomName, ruleId, names: [] });
       game.roomId = roomId;
-      const room = { game, hostToken: randomBytes(32).toString("base64url"), version: 1, questionDeadline: null, questionTimer: null, undoGame: null, listeners: new Set(), players: new Map(), updatedAt: Date.now() };
+      const room = { game, hostToken: randomBytes(32).toString("base64url"), version: 1, questionDeadline: null, questionTimer: null, undoHistory: [], listeners: new Set(), players: new Map(), updatedAt: Date.now() };
       rooms.set(roomId, room);
       return json(response, 201, { ...publicRoom(room), hostToken: room.hostToken });
     }
@@ -205,14 +205,13 @@ const server = createServer(async (request, response) => {
         return json(response, 403, { error: "司会者の認証が必要です" });
       }
       if (action.type === "UNDO") {
-        if (!room.undoGame) return json(response, 409, { error: "取り消せる操作がありません", ...publicRoom(room) });
+        if (!room.undoHistory.length) return json(response, 409, { error: "取り消せる操作がありません", ...publicRoom(room) });
         clearTimeout(room.questionTimer);
         room.questionTimer = null;
-        room.game = room.undoGame.game;
-        const undoDeadline = room.undoGame.questionDeadline;
-        room.undoGame = null;
+        const undoState = room.undoHistory.pop();
+        room.game = undoState.game;
         room.questionDeadline = null;
-        if (undoDeadline && room.game.phase === Phase.QUESTION) setQuestionTimer(room, undoDeadline);
+        if (undoState.questionDeadline && room.game.phase === Phase.QUESTION) setQuestionTimer(room, undoState.questionDeadline);
         room.version += 1;
         broadcast(room);
         return json(response, 200, publicRoom(room));
@@ -223,10 +222,12 @@ const server = createServer(async (request, response) => {
       }
       if (room.questionDeadline && room.questionDeadline <= Date.now()) applyAction(room, { type: "NO_ANSWER" });
       const priorGame = room.game;
-      const priorUndo = room.undoGame;
-      room.undoGame = action.type === "JUDGE" || action.type === "SET_SCORE" ? { game: priorGame, questionDeadline: room.questionDeadline } : null;
+      const priorHistory = room.undoHistory;
+      room.undoHistory = action.type === "JUDGE" || action.type === "SET_SCORE"
+        ? [...priorHistory, { game: priorGame, questionDeadline: room.questionDeadline }].slice(-20)
+        : [];
       if (!applyAction(room, action)) {
-        room.undoGame = priorUndo;
+        room.undoHistory = priorHistory;
         return json(response, 409, { error: "現在の状態では操作できません", ...publicRoom(room) });
       }
       return json(response, 200, publicRoom(room));
