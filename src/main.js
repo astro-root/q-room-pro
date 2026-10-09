@@ -1,4 +1,4 @@
-import { Phase, activePlayers, canBuzz, orderedResults, reduceGame, ruleForGame } from "./domain.js";
+import { Phase, activePlayers, buzzDelayRemaining, canBuzz, orderedResults, reduceGame, ruleForGame } from "./domain.js";
 import { buzzFeedback, canRequestFullscreen, exitNativeApp, getLaunchUrl, onAppResume, onAppUrlOpen, onNativeBackButton, openRoomEvents, playSoundCue, primeSound, readPreference, removePreference, request, requestFullscreen, setScreenAwake, shareRoomCode, writePreference } from "./platform.js";
 
 const app = document.querySelector("#app");
@@ -27,9 +27,11 @@ let currentVersion = 0;
 let canUndo = false;
 let undoCount = 0;
 const QUESTION_SECONDS = 20;
+function currentQuestionStartAt() { return timerDeadline ? timerDeadline - QUESTION_SECONDS * 1000 : 0; }
 let timerRemaining = QUESTION_SECONDS;
 let timerDeadline = 0;
 let clockInterval = null;
+let delayRefreshTimer = null;
 const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 async function api(path, body, token) {
   let response;
@@ -127,13 +129,14 @@ function connectRoomEvents() {
 
 async function dispatch(action) {
   if (!session || !game) return;
+  const dispatchedAction = action.type === "BUZZ" ? { ...action, now: Date.now(), questionStartAt: currentQuestionStartAt() } : action;
   const prior = game;
   const expectedVersion = currentVersion;
-  const optimistic = reduceGame(prior, action);
+  const optimistic = reduceGame(prior, dispatchedAction);
   if (optimistic !== prior) { game = optimistic; render(); }
   notice = "";
   try {
-    const body = { action, version: expectedVersion, ...(session.role === "player" ? { playerToken: session.token } : {}) };
+    const body = { action: dispatchedAction, version: expectedVersion, ...(session.role === "player" ? { playerToken: session.token } : {}) };
     await api(`/api/rooms/${session.roomId}/actions`, body, session.role === "host" ? session.token : undefined);
   } catch (error) {
     notice = error.message;
@@ -188,8 +191,10 @@ function renderJoin() {
 
 function playerCard(player, index) {
   const buzzed = game.buzzedPlayerId === player.id;
-  const status = player.eliminated ? "失格" : buzzed ? "回答者" : player.penalty ? "回答済み" : game.phase === Phase.QUESTION ? "受付中" : "待機中";
-  return `<article class="player-card ${buzzed ? "is-buzzed" : ""} ${player.eliminated ? "is-out" : ""}"><div class="player-meta"><span class="player-index">${String(index + 1).padStart(2, "0")}</span><strong>${esc(player.name)}</strong>${player.eliminated ? '<span class="out-tag">OUT</span>' : player.penalty ? '<span class="penalty-tag">PENALTY</span>' : ""}</div><div class="player-stats"><b>${player.score}<small>点</small></b><span>${player.correct} <i>○</i></span><span>${player.incorrect} <i class="cross">×</i></span>${session?.role === "host" ? `<button class="score-edit" data-action="edit-score" data-id="${player.id}" aria-label="${esc(player.name)}の得点を修正">修正</button>` : ""}</div><div class="host-player-status">${status}</div></article>`;
+  const delayRemaining = game.phase === Phase.QUESTION ? buzzDelayRemaining(game, player.id, currentQuestionStartAt()) : 0;
+  const status = player.eliminated ? "失格" : buzzed ? "回答者" : player.penalty ? "回答済み" : delayRemaining > 0 ? `Delay · ${Math.ceil(delayRemaining / 1000)}秒` : game.phase === Phase.QUESTION ? "受付中" : "待機中";
+  const hostCanEditDelay = session?.role === "host" && game.phase === Phase.READY && game.question === 0;
+  return `<article class="player-card ${buzzed ? "is-buzzed" : ""} ${player.eliminated ? "is-out" : ""}"><div class="player-meta"><span class="player-index">${String(index + 1).padStart(2, "0")}</span><strong>${esc(player.name)}</strong>${player.eliminated ? '<span class="out-tag">OUT</span>' : player.penalty ? '<span class="penalty-tag">PENALTY</span>' : player.delaySeconds ? `<span class="delay-tag">DELAY ${player.delaySeconds}s</span>` : ""}</div><div class="player-stats"><b>${player.score}<small>点</small></b><span>${player.correct} <i>○</i></span><span>${player.incorrect} <i class="cross">×</i></span>${session?.role === "host" ? `<button class="score-edit" data-action="edit-score" data-id="${player.id}" aria-label="${esc(player.name)}の得点を修正">修正</button>${hostCanEditDelay ? `<button class="score-edit" data-action="edit-delay" data-id="${player.id}" aria-label="${esc(player.name)}の早押しDelayを設定">Delay</button>` : ""}` : ""}</div><div class="host-player-status">${status}</div></article>`;
 }
 
 function connectionLabel(state) {
@@ -211,8 +216,11 @@ function renderPlayer() {
   const player = game.players.find((item) => item.id === session?.playerId);
   if (!player) { view = "home"; renderHome(); return; }
   const rule = ruleForGame(game);
-  const canPress = canBuzz(game, player.id);
-  const label = game.phase === Phase.FINISHED ? "ゲーム終了" : player.eliminated ? "失格" : game.phase === Phase.BUZZED ? game.buzzedPlayerId === player.id ? "あなたの回答です" : "回答受付終了" : canPress ? "問題を聞いて、わかったら押す" : game.phase === Phase.READY ? "次の問題を待っています" : "出題中";
+  const canPress = canBuzz(game, player.id, Date.now(), currentQuestionStartAt());
+  const delayRemaining = buzzDelayRemaining(game, player.id, currentQuestionStartAt());
+  if (delayRefreshTimer !== null) { window.clearTimeout(delayRefreshTimer); delayRefreshTimer = null; }
+  if (delayRemaining > 0) delayRefreshTimer = window.setTimeout(() => { delayRefreshTimer = null; render(); }, delayRemaining + 5);
+  const label = game.phase === Phase.FINISHED ? "ゲーム終了" : player.eliminated ? "失格" : game.phase === Phase.BUZZED ? game.buzzedPlayerId === player.id ? "あなたの回答です" : "回答受付終了" : delayRemaining > 0 ? `早押し受付まで ${Math.ceil(delayRemaining / 1000)}秒` : canPress ? "問題を聞いて、わかったら押す" : game.phase === Phase.READY ? "次の問題を待っています" : "出題中";
   app.innerHTML = `<main class="player-shell ${canPress ? "accepting" : ""}"><header class="player-header"><a class="brand compact" href="#" data-action="leave-room"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></a><div class="player-header-actions"><span class="connection-status ${connectionState}" role="status"><i></i>${connectionLabel(connectionState)}</span><span class="room-code"><small>ROOM</small><b>${game.roomId}</b></span><button class="icon-button sound-toggle" data-action="sound-toggle" aria-label="効果音${soundEnabled ? "をオフ" : "をオン"}" title="効果音">${soundEnabled ? "♫" : "♪̸"}</button></div></header><section class="player-main"><div class="player-game-meta"><span class="eyebrow">${esc(game.roomName)} · ${esc(rule.name)}</span><span>QUESTION ${String(game.question).padStart(2, "0")}</span></div><div class="player-select-label">PLAYER</div><div class="player-scoreline"><div><strong>${esc(player.name)}</strong><span>${player.correct} ○ <i>${player.incorrect} ×</i></span></div><b>${player.score}<small>PTS</small></b></div>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="player-buzz ${canPress ? "ready" : ""} ${game.buzzedPlayerId === player.id ? "won" : ""}" data-action="buzz" data-id="${player.id}" ${canPress ? "" : "disabled"}><span>${canPress ? "BUZZ" : game.buzzedPlayerId === player.id ? "BUZZED" : "WAIT"}</span><small>${canPress ? "TAP TO ANSWER" : esc(label)}</small></button><div class="player-state"><span class="state-dot ${game.phase}"></span>${esc(label)}${game.phase === Phase.QUESTION ? `<b class="player-time">${timerRemaining}s</b>` : ""}</div></section><footer class="player-footer"><span>Q-ROOM PRO</span><button class="text-button" data-action="leave-room">ルームを退出</button></footer></main>`;
 }
 
@@ -250,6 +258,17 @@ app.addEventListener("click", (event) => {
       } else dispatch({ type: "SET_SCORE", playerId: id, score });
     }
   }
+  if (action === "edit-delay" && session?.role === "host") {
+    const target = game.players.find((player) => player.id === id);
+    const enteredDelay = target && window.prompt(`${target.name}の早押しDelayを秒で指定してください（0〜10）`, String(target.delaySeconds || 0));
+    if (enteredDelay !== null && target) {
+      const delaySeconds = Number(enteredDelay.trim());
+      if (!/^\d+$/.test(enteredDelay.trim()) || !Number.isInteger(delaySeconds) || delaySeconds > 10) {
+        notice = "早押しDelayは0〜10秒の整数で指定してください";
+        render();
+      } else dispatch({ type: "SET_DELAY", playerId: id, delaySeconds });
+    }
+  }
   if (action === "no-answer") dispatch({ type: "NO_ANSWER" });
   // Pointer users are handled on pointerdown; this fallback supports assistive click activation.
   if (action === "buzz" && event.detail === 0) { buzzFeedback(); if (soundEnabled) playSoundCue("buzz"); dispatch({ type: "BUZZ", playerId: id }); }
@@ -281,7 +300,7 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("keydown", (event) => {
   if (event.repeat || event.target.matches("input,textarea,select,[contenteditable='true']") || event.altKey || event.ctrlKey || event.metaKey) return;
-  if (view === "player" && event.code === "Space" && session?.playerId && canBuzz(game, session.playerId)) {
+  if (view === "player" && event.code === "Space" && session?.playerId && canBuzz(game, session.playerId, Date.now(), currentQuestionStartAt())) {
     event.preventDefault();
     buzzFeedback();
     if (soundEnabled) playSoundCue("buzz");

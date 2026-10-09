@@ -224,13 +224,19 @@ const server = createServer(async (request, response) => {
       if (action.type === "SET_SCORE" && (!room.game.players.some((player) => player.id === action.playerId) || !Number.isInteger(action.score) || action.score < 0 || action.score > 999)) {
         return json(response, 400, { error: "得点は0〜999の整数で指定してください" });
       }
+      if (action.type === "SET_DELAY" && (!room.game.players.some((player) => player.id === action.playerId) || !Number.isInteger(action.delaySeconds) || action.delaySeconds < 0 || action.delaySeconds > 10 || room.game.phase !== Phase.READY || room.game.question !== 0)) {
+        return json(response, 400, { error: "早押しDelayはロビーで0〜10秒に設定してください" });
+      }
       if (room.questionDeadline && room.questionDeadline <= Date.now()) applyAction(room, { type: "NO_ANSWER" });
       const priorGame = room.game;
       const priorHistory = room.undoHistory;
-      room.undoHistory = action.type === "JUDGE" || action.type === "SET_SCORE"
+      room.undoHistory = action.type === "JUDGE" || action.type === "SET_SCORE" || action.type === "SET_DELAY"
         ? [...priorHistory, { game: priorGame, questionDeadline: room.questionDeadline }].slice(-20)
         : [];
-      if (!applyAction(room, action)) {
+      const actionToApply = action.type === "BUZZ"
+        ? { ...action, now: Date.now(), questionStartAt: room.questionDeadline ? room.questionDeadline - 20_000 : 0 }
+        : action;
+      if (!applyAction(room, actionToApply)) {
         room.undoHistory = priorHistory;
         return json(response, 409, { error: "現在の状態では操作できません", ...publicRoom(room) });
       }

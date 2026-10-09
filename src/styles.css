@@ -39,6 +39,7 @@
 .score-edit:hover{border-color:var(--lime);color:var(--lime)}
 .custom-rule-fields{display:grid;gap:16px}
 .custom-rule-fields[hidden]{display:none}
+.delay-tag{color:#a9c8ff;font:8px 'DM Mono',monospace;letter-spacing:.08em}
 .connection-status{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:100px;color:#a5adb8;font:9px 'DM Mono',monospace;white-space:nowrap}
 .connection-status i{width:7px;height:7px;border-radius:50%;background:#89919d}
 .connection-status.connected i{background:var(--lime);box-shadow:0 0 10px #d4fc6360}
