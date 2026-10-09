@@ -1,5 +1,5 @@
 import { Phase, RULES, activePlayers, canBuzz, orderedResults, reduceGame } from "./domain.js";
-import { buzzFeedback, canRequestFullscreen, exitNativeApp, getLaunchUrl, onAppResume, onAppUrlOpen, onNativeBackButton, openRoomEvents, readPreference, removePreference, request, requestFullscreen, shareRoomCode, writePreference } from "./platform.js";
+import { buzzFeedback, canRequestFullscreen, exitNativeApp, getLaunchUrl, onAppResume, onAppUrlOpen, onNativeBackButton, openRoomEvents, playSoundCue, primeSound, readPreference, removePreference, request, requestFullscreen, setScreenAwake, shareRoomCode, writePreference } from "./platform.js";
 
 const app = document.querySelector("#app");
 if ("serviceWorker" in navigator && !globalThis.QROOM_PLATFORM?.isNative && !globalThis.Capacitor?.isNativePlatform?.()) {
@@ -8,6 +8,7 @@ if ("serviceWorker" in navigator && !globalThis.QROOM_PLATFORM?.isNative && !glo
 let game = null;
 let view = "home";
 let playerName = "プレイヤー";
+let soundEnabled = true;
 const validRoomCode = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/;
 function roomCodeFromUrl(value) {
   try {
@@ -45,9 +46,19 @@ async function api(path, body, token) {
 
 function applySnapshot(snapshot) {
   if (snapshot.version < currentVersion) return;
+  const previousGame = game;
+  const priorBuzzedPlayerId = previousGame?.buzzedPlayerId;
   currentVersion = snapshot.version;
   game = snapshot.game;
   canUndo = Boolean(snapshot.canUndo);
+  if (soundEnabled && previousGame && (view === "room" || view === "player")) {
+    if (game.buzzedPlayerId && game.buzzedPlayerId !== priorBuzzedPlayerId) playSoundCue("buzz");
+    else if (previousGame.phase === Phase.BUZZED && game.phase !== Phase.BUZZED) {
+      if (game.message.startsWith("正解")) playSoundCue("correct");
+      else if (game.message.startsWith("不正解")) playSoundCue("incorrect");
+    }
+  }
+  void setScreenAwake(Boolean(session) && game.phase !== Phase.FINISHED);
   timerDeadline = snapshot.questionDeadline || 0;
   timerRemaining = timerDeadline ? Math.max(0, Math.ceil((timerDeadline - Date.now()) / 1000)) : 0;
   if (timerDeadline && clockInterval === null) clockInterval = window.setInterval(() => {
@@ -128,6 +139,7 @@ function renderSetup() {
   app.innerHTML = `<main class="setup-shell"><button class="back" data-action="home">← ホーム</button><div class="eyebrow">NEW GAME · 01</div><h1>ルームを<br>作成する</h1><form id="setup-form" class="setup-form"><label>ルーム名<input name="room" maxlength="40" placeholder="例：水曜夜の練習会" value="今日のクイズ" required /></label><label>ゲームルール<select name="rule"><option value="sevenThree">7○3× — 7問正解で勝利、3回誤答で失格</option><option value="tenByTen">10by10 — 10問正解で勝利</option></select></label><p class="form-note">作成後に表示されるルームコードをプレイヤーへ共有してください。</p><button class="primary large" type="submit">ルームを作成 <span>→</span></button><p class="form-error" role="alert">${esc(notice)}</p></form></main>`;
   document.querySelector("#setup-form").addEventListener("submit", (event) => {
     event.preventDefault();
+    if (soundEnabled) primeSound();
     const data = new FormData(event.currentTarget);
     void api("/api/rooms", { roomName: data.get("room"), ruleId: data.get("rule") }).then(async (result) => {
       notice = "";
@@ -140,6 +152,7 @@ function renderJoin() {
   app.innerHTML = `<main class="setup-shell"><button class="back" data-action="home">← ホーム</button><div class="eyebrow">JOIN A ROOM · 01</div><h1>ゲームに<br>参加する</h1><form id="join-form" class="setup-form"><label>ルームコード<input name="code" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="例：A2BC34DE" value="${esc(pendingRoomCode)}" required /></label><label>プレイヤー名<input name="name" maxlength="24" autocomplete="name" value="${esc(playerName)}" required /></label><button class="primary large" type="submit">参加する <span>→</span></button><p class="form-error" role="alert">${esc(notice)}</p></form></main>`;
   document.querySelector("#join-form").addEventListener("submit", (event) => {
     event.preventDefault();
+    if (soundEnabled) primeSound();
     const data = new FormData(event.currentTarget);
     const roomId = String(data.get("code")).trim().toUpperCase();
     const name = String(data.get("name")).trim();
@@ -158,7 +171,7 @@ function playerCard(player, index) {
 }
 
 function renderRoom() {
-  const host = `<header class="room-header"><div class="brand compact"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></div><div class="room-header-actions"><div class="room-code"><small>ROOM CODE</small><b>${game.roomId}</b></div><button class="secondary mode-button" data-action="copy-code">参加リンクを共有</button>${canRequestFullscreen() ? '<button class="icon-button" data-action="fullscreen" title="全画面表示">⛶</button>' : ""}</div></header>`;
+  const host = `<header class="room-header"><div class="brand compact"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></div><div class="room-header-actions"><div class="room-code"><small>ROOM CODE</small><b>${game.roomId}</b></div><button class="secondary mode-button" data-action="copy-code">参加リンクを共有</button><button class="icon-button sound-toggle" data-action="sound-toggle" aria-label="効果音${soundEnabled ? "をオフ" : "をオン"}" title="効果音">${soundEnabled ? "♫" : "♪̸"}</button>${canRequestFullscreen() ? '<button class="icon-button" data-action="fullscreen" title="全画面表示">⛶</button>' : ""}</div></header>`;
   const controls = game.phase === Phase.READY && game.question === 0
     ? `<button class="primary" data-action="start" ${game.players.length ? "" : "disabled"}>ゲーム開始 <span>→</span></button>`
     : game.phase === Phase.BUZZED ? `<button class="judge correct" data-action="correct">○ 正解</button><button class="judge incorrect" data-action="incorrect">× 不正解</button>`
@@ -172,7 +185,7 @@ function renderPlayer() {
   if (!player) { view = "home"; renderHome(); return; }
   const canPress = canBuzz(game, player.id);
   const label = game.phase === Phase.FINISHED ? "ゲーム終了" : player.eliminated ? "失格" : game.phase === Phase.BUZZED ? game.buzzedPlayerId === player.id ? "あなたの回答です" : "回答受付終了" : canPress ? "問題を聞いて、わかったら押す" : game.phase === Phase.READY ? "次の問題を待っています" : "出題中";
-  app.innerHTML = `<main class="player-shell ${canPress ? "accepting" : ""}"><header class="player-header"><a class="brand compact" href="#" data-action="leave-room"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></a><span class="room-code"><small>ROOM</small><b>${game.roomId}</b></span></header><section class="player-main"><div class="player-game-meta"><span class="eyebrow">${esc(game.roomName)} · ${RULES[game.ruleId].name}</span><span>QUESTION ${String(game.question).padStart(2, "0")}</span></div><div class="player-select-label">PLAYER</div><div class="player-scoreline"><div><strong>${esc(player.name)}</strong><span>${player.correct} ○ <i>${player.incorrect} ×</i></span></div><b>${player.score}<small>PTS</small></b></div>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="player-buzz ${canPress ? "ready" : ""} ${game.buzzedPlayerId === player.id ? "won" : ""}" data-action="buzz" data-id="${player.id}" ${canPress ? "" : "disabled"}><span>${canPress ? "BUZZ" : game.buzzedPlayerId === player.id ? "BUZZED" : "WAIT"}</span><small>${canPress ? "TAP TO ANSWER" : esc(label)}</small></button><div class="player-state"><span class="state-dot ${game.phase}"></span>${esc(label)}${game.phase === Phase.QUESTION ? `<b class="player-time">${timerRemaining}s</b>` : ""}</div></section><footer class="player-footer"><span>Q-ROOM PRO</span><button class="text-button" data-action="leave-room">ルームを退出</button></footer></main>`;
+  app.innerHTML = `<main class="player-shell ${canPress ? "accepting" : ""}"><header class="player-header"><a class="brand compact" href="#" data-action="leave-room"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></a><div class="player-header-actions"><span class="room-code"><small>ROOM</small><b>${game.roomId}</b></span><button class="icon-button sound-toggle" data-action="sound-toggle" aria-label="効果音${soundEnabled ? "をオフ" : "をオン"}" title="効果音">${soundEnabled ? "♫" : "♪̸"}</button></div></header><section class="player-main"><div class="player-game-meta"><span class="eyebrow">${esc(game.roomName)} · ${RULES[game.ruleId].name}</span><span>QUESTION ${String(game.question).padStart(2, "0")}</span></div><div class="player-select-label">PLAYER</div><div class="player-scoreline"><div><strong>${esc(player.name)}</strong><span>${player.correct} ○ <i>${player.incorrect} ×</i></span></div><b>${player.score}<small>PTS</small></b></div>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="player-buzz ${canPress ? "ready" : ""} ${game.buzzedPlayerId === player.id ? "won" : ""}" data-action="buzz" data-id="${player.id}" ${canPress ? "" : "disabled"}><span>${canPress ? "BUZZ" : game.buzzedPlayerId === player.id ? "BUZZED" : "WAIT"}</span><small>${canPress ? "TAP TO ANSWER" : esc(label)}</small></button><div class="player-state"><span class="state-dot ${game.phase}"></span>${esc(label)}${game.phase === Phase.QUESTION ? `<b class="player-time">${timerRemaining}s</b>` : ""}</div></section><footer class="player-footer"><span>Q-ROOM PRO</span><button class="text-button" data-action="leave-room">ルームを退出</button></footer></main>`;
 }
 
 function render() {
@@ -183,17 +196,24 @@ function render() {
 app.addEventListener("click", (event) => {
   const button = event.target.closest("[data-action]"); if (!button) return;
   const { action, id } = button.dataset;
+  if (soundEnabled) primeSound();
+  if (action === "sound-toggle") {
+    soundEnabled = !soundEnabled;
+    if (soundEnabled) primeSound();
+    void writePreference("qroom-sound", soundEnabled ? "on" : "off");
+    render();
+  }
   if (action === "home") { event.preventDefault(); notice = ""; view = "home"; render(); }
   if (action === "create") { notice = ""; view = "setup"; render(); }
   if (action === "join-view") { notice = ""; view = "join"; renderJoin(); }
-  if (action === "start") dispatch({ type: "START" });
+  if (action === "start") { primeSound(); dispatch({ type: "START" }); }
   if (action === "next") dispatch({ type: "NEXT" });
-  if (action === "correct") dispatch({ type: "JUDGE", correct: true });
-  if (action === "incorrect") dispatch({ type: "JUDGE", correct: false });
+  if (action === "correct") { if (soundEnabled) playSoundCue("correct"); dispatch({ type: "JUDGE", correct: true }); }
+  if (action === "incorrect") { if (soundEnabled) playSoundCue("incorrect"); dispatch({ type: "JUDGE", correct: false }); }
   if (action === "undo") dispatch({ type: "UNDO" });
   if (action === "no-answer") dispatch({ type: "NO_ANSWER" });
   // Pointer users are handled on pointerdown; this fallback supports assistive click activation.
-  if (action === "buzz" && event.detail === 0) { buzzFeedback(); dispatch({ type: "BUZZ", playerId: id }); }
+  if (action === "buzz" && event.detail === 0) { buzzFeedback(); if (soundEnabled) playSoundCue("buzz"); dispatch({ type: "BUZZ", playerId: id }); }
   if (action === "end") dispatch({ type: "END" });
   if (action === "reset") dispatch({ type: "RESET" });
   if (action === "fullscreen") requestFullscreen();
@@ -213,14 +233,19 @@ app.addEventListener("pointerdown", (event) => {
   if (!button) return;
   button.classList.add("pressed");
   buzzFeedback();
+  if (soundEnabled) playSoundCue("buzz");
   dispatch({ type: "BUZZ", playerId: button.dataset.id });
 });
 app.addEventListener("pointerup", () => document.querySelectorAll(".player-buzz.pressed").forEach((button) => button.classList.remove("pressed")));
+document.addEventListener("visibilitychange", () => {
+  if (session && document.visibilityState === "visible" && game?.phase !== Phase.FINISHED) void setScreenAwake(true);
+});
 window.addEventListener("keydown", (event) => {
   if (event.repeat || event.target.matches("input,textarea,select,[contenteditable='true']") || event.altKey || event.ctrlKey || event.metaKey) return;
   if (view === "player" && event.code === "Space" && session?.playerId && canBuzz(game, session.playerId)) {
     event.preventDefault();
     buzzFeedback();
+    if (soundEnabled) playSoundCue("buzz");
     void dispatch({ type: "BUZZ", playerId: session.playerId });
     return;
   }
@@ -234,7 +259,14 @@ window.addEventListener("keydown", (event) => {
     KeyU: canUndo ? { type: "UNDO" } : null,
   };
   const action = shortcuts[event.code];
-  if (action) { event.preventDefault(); void dispatch(action); }
+  if (action) {
+    event.preventDefault();
+    if (soundEnabled) {
+      primeSound();
+      if (action.type === "JUDGE") playSoundCue(action.correct ? "correct" : "incorrect");
+    }
+    void dispatch(action);
+  }
 });
 
 async function refreshRoom() {
@@ -253,6 +285,7 @@ function closeRoomView() {
   eventSource?.close(); eventSource = null;
   if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
   session = null; game = null;
+  void setScreenAwake(false);
   void removePreference("qroom-session");
   view = "home";
   render();
@@ -281,6 +314,7 @@ void onNativeBackButton(async () => {
 });
 
 async function restoreSession() {
+  soundEnabled = (await readPreference("qroom-sound", "on")) !== "off";
   playerName = await readPreference("qroom-player", "プレイヤー");
   let savedSession = null;
   try { savedSession = JSON.parse(await readPreference("qroom-session", "null")); } catch { /* Ignore malformed local session data. */ }

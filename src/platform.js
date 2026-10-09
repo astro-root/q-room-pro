@@ -2,6 +2,8 @@
 // domain can then be shared by the web app and a native WebView shell.
 const capacitor = globalThis.Capacitor;
 const nativeBridge = globalThis.QROOM_PLATFORM || {};
+let screenWakeLock = null;
+let audioContext = null;
 export const isNativePlatform = Boolean(nativeBridge.isNative || capacitor?.isNativePlatform?.());
 
 export const apiBase = (nativeBridge.apiBase || globalThis.QROOM_API_BASE || "").replace(/\/$/, "");
@@ -65,6 +67,36 @@ export function buzzFeedback(duration = 18) {
   }
 }
 
+export function primeSound() {
+  const AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
+  if (!AudioContextClass) return;
+  try {
+    audioContext ||= new AudioContextClass();
+    if (audioContext.state === "suspended") void audioContext.resume().catch(() => {});
+  } catch { /* Audio is an optional enhancement. */ }
+}
+
+export function playSoundCue(kind = "buzz") {
+  primeSound();
+  if (!audioContext || audioContext.state !== "running") return;
+  const frequencies = kind === "buzz" ? [740, 520] : kind === "correct" ? [660, 880] : [260, 190];
+  const start = audioContext.currentTime;
+  frequencies.forEach((frequency, index) => {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const offset = index * 0.065;
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, start + offset);
+    gain.gain.setValueAtTime(0.0001, start + offset);
+    gain.gain.exponentialRampToValueAtTime(0.045, start + offset + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.09);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(start + offset);
+    oscillator.stop(start + offset + 0.1);
+  });
+}
+
 export async function shareRoomCode(code) {
   const appUrl = new URL("qroom://join");
   appUrl.searchParams.set("room", code);
@@ -94,6 +126,24 @@ export async function shareRoomCode(code) {
 export function requestFullscreen(element = document.documentElement) {
   if (nativeBridge.fullscreen) return nativeBridge.fullscreen();
   return element.requestFullscreen?.();
+}
+
+export async function setScreenAwake(awake) {
+  if (nativeBridge.setScreenAwake) {
+    try { await nativeBridge.setScreenAwake(awake); } catch { /* Keeping the display awake is a best-effort convenience. */ }
+    return;
+  }
+  if (!awake) {
+    const lock = screenWakeLock;
+    screenWakeLock = null;
+    try { await lock?.release(); } catch { /* The browser may already have released it. */ }
+    return;
+  }
+  if (screenWakeLock || globalThis.document?.visibilityState === "hidden" || !globalThis.navigator?.wakeLock?.request) return;
+  try {
+    screenWakeLock = await navigator.wakeLock.request("screen");
+    screenWakeLock.addEventListener("release", () => { screenWakeLock = null; }, { once: true });
+  } catch { /* Unsupported browsers and denied requests continue normally. */ }
 }
 
 export function canRequestFullscreen() {
