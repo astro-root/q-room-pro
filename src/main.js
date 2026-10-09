@@ -79,7 +79,8 @@ async function connectRoom(snapshot, newSession, nextView) {
   session = newSession;
   connectionState = "connecting";
   notice = "";
-  await writePreference("qroom-session", JSON.stringify(session));
+  if (session.role === "spectator") await removePreference("qroom-session");
+  else await writePreference("qroom-session", JSON.stringify(session));
   view = nextView;
   applySnapshot(snapshot);
   if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
@@ -174,7 +175,7 @@ function renderSetup() {
 }
 
 function renderJoin() {
-  app.innerHTML = `<main class="setup-shell"><button class="back" data-action="home">← ホーム</button><div class="eyebrow">JOIN A ROOM · 01</div><h1>ゲームに<br>参加する</h1><form id="join-form" class="setup-form"><label>ルームコード<input name="code" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="例：A2BC34DE" value="${esc(pendingRoomCode)}" required /></label><label>プレイヤー名<input name="name" maxlength="24" autocomplete="name" value="${esc(playerName)}" required /></label><button class="primary large" type="submit">参加する <span>→</span></button><p class="form-error" role="alert">${esc(notice)}</p></form></main>`;
+  app.innerHTML = `<main class="setup-shell"><button class="back" data-action="home">← ホーム</button><div class="eyebrow">JOIN A ROOM · 01</div><h1>ゲームに<br>参加する</h1><form id="join-form" class="setup-form"><label>ルームコード<input name="code" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="例：A2BC34DE" value="${esc(pendingRoomCode)}" required /></label><label>プレイヤー名<input name="name" maxlength="24" autocomplete="name" value="${esc(playerName)}" required /></label><button class="primary large" type="submit">参加する <span>→</span></button><button class="secondary large watch-entry" type="button" data-action="watch">観戦する <span>↗</span></button><p class="form-note">観戦では早押し・ゲーム操作はできません。</p><p class="form-error" role="alert">${esc(notice)}</p></form></main>`;
   document.querySelector("#join-form").addEventListener("submit", (event) => {
     event.preventDefault();
     if (soundEnabled) primeSound();
@@ -213,6 +214,11 @@ function renderRoom() {
   app.innerHTML = `<main class="room-shell">${host}<div class="room-content"><section class="room-title"><div><div class="eyebrow">${esc(rule.name)} · QUESTION ${String(game.question).padStart(2, "0")}</div><h1>${esc(game.roomName)}</h1></div><span class="phase-pill ${game.phase}"><i></i>${esc(game.message)}</span></section>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<section class="host-panel"><div class="host-panel-top"><div><small>GAME CONTROL</small><h2>${game.phase === Phase.BUZZED ? "回答者を判定" : game.phase === Phase.FINISHED ? "ゲーム結果" : game.question === 0 ? "参加者を待っています" : "司会コントロール"}</h2></div><span class="host-round">${game.phase === Phase.QUESTION ? `<span class="countdown ${timerRemaining <= 5 ? "urgent" : ""}" aria-label="残り${timerRemaining}秒">${String(timerRemaining).padStart(2, "0")}<small>SEC</small></span>` : game.question ? `Q ${game.question}` : "LOBBY"}</span></div><div class="host-actions">${controls}${canUndo && session?.role === "host" ? `<button class="secondary undo-button" data-action="undo">↶ Undo (${undoCount})</button>` : ""}<span class="host-hint">${game.phase === Phase.BUZZED ? "判定後、次の問題へ進めます" : game.phase === Phase.QUESTION ? "残り時間内に早押しするか、回答なしで次問へ進みます" : game.question === 0 ? "ルームコードを共有し、プレイヤーの参加を待ちます" : "問題を読み上げて、プレイヤーの早押しを待ちます"}</span><span class="keyboard-hint" aria-label="キーボードショートカット">1 正解 · 2 不正解 · N 次問 · U 取り消し</span></div></section><section class="players-section"><div class="section-heading"><div><small>PLAYERS</small><h2>プレイヤー <span>${activePlayers(game).length}/${game.players.length}</span></h2></div>${game.phase !== Phase.FINISHED ? `<button class="text-button" data-action="end">ゲーム終了</button>` : ""}</div><div class="player-grid">${game.players.map(playerCard).join("") || `<p class="empty-players">ルームコードを共有すると、参加者がここに表示されます。</p>`}</div></section>${game.phase === Phase.FINISHED ? `<section class="results"><div class="eyebrow">FINAL RESULTS</div><h2>ゲーム結果</h2><div>${orderedResults(game).map((p, i) => `<p><b>${String(i + 1).padStart(2, "0")}</b> ${esc(p.name)} <span>${p.score}点 · ${p.correct}○ ${p.incorrect}×</span></p>`).join("")}</div></section>` : ""}</div></main>`;
 }
 
+function renderSpectator() {
+  const rule = ruleForGame(game);
+  app.innerHTML = `<main class="room-shell"><header class="room-header"><div class="brand compact"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></div><div class="room-header-actions"><span class="connection-status ${connectionState}" role="status"><i></i>${connectionLabel(connectionState)}</span><div class="room-code"><small>ROOM CODE</small><b>${game.roomId}</b></div><button class="secondary mode-button" data-action="leave-room">観戦終了</button></div></header><div class="room-content"><section class="room-title"><div><div class="eyebrow">SPECTATING · ${esc(rule.name)} · QUESTION ${String(game.question).padStart(2, "0")}</div><h1>${esc(game.roomName)}</h1></div><span class="phase-pill ${game.phase}"><i></i>${esc(game.message)}</span></section>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<section class="players-section"><div class="section-heading"><div><small>LIVE SCOREBOARD</small><h2>プレイヤー <span>${activePlayers(game).length}/${game.players.length}</span></h2></div></div><div class="player-grid">${game.players.map(playerCard).join("") || `<p class="empty-players">参加者はまだいません。</p>`}</div></section>${game.phase === Phase.FINISHED ? `<section class="results"><div class="eyebrow">FINAL RESULTS</div><h2>ゲーム結果</h2><div>${orderedResults(game).map((p, i) => `<p><b>${String(i + 1).padStart(2, "0")}</b> ${esc(p.name)} <span>${p.score}点 · ${p.correct}○ ${p.incorrect}×</span></p>`).join("")}</div></section>` : ""}</div></main>`;
+}
+
 function renderPlayer() {
   const player = game.players.find((item) => item.id === session?.playerId);
   if (!player) { view = "home"; renderHome(); return; }
@@ -226,7 +232,7 @@ function renderPlayer() {
 }
 
 function render() {
-  view === "home" ? renderHome() : view === "setup" ? renderSetup() : view === "join" ? renderJoin() : view === "player" ? renderPlayer() : renderRoom();
+  view === "home" ? renderHome() : view === "setup" ? renderSetup() : view === "join" ? renderJoin() : view === "player" ? renderPlayer() : view === "spectator" ? renderSpectator() : renderRoom();
   app.dataset.ready = "true";
 }
 
@@ -243,6 +249,14 @@ app.addEventListener("click", (event) => {
   if (action === "home") { event.preventDefault(); notice = ""; view = "home"; render(); }
   if (action === "create") { notice = ""; view = "setup"; render(); }
   if (action === "join-view") { notice = ""; view = "join"; renderJoin(); }
+  if (action === "watch") {
+    const code = String(new FormData(document.querySelector("#join-form")).get("code") || "").trim().toUpperCase();
+    if (!validRoomCode.test(code)) { notice = "8文字のルームコードを入力してください"; renderJoin(); return; }
+    void api(`/api/rooms/${encodeURIComponent(code)}`).then(async (snapshot) => {
+      pendingRoomCode = "";
+      await connectRoom(snapshot, { roomId: code, role: "spectator" }, "spectator");
+    }).catch((error) => { notice = error.message; renderJoin(); });
+  }
   if (action === "start") { primeSound(); dispatch({ type: "START" }); }
   if (action === "next") dispatch({ type: "NEXT" });
   if (action === "correct") { if (soundEnabled) playSoundCue("correct"); dispatch({ type: "JUDGE", correct: true }); }
