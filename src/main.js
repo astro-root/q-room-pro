@@ -22,14 +22,22 @@ let reconnectTimer = null;
 let reconnectAttempts = 0;
 let notice = "";
 let currentVersion = 0;
+let canUndo = false;
 const QUESTION_SECONDS = 20;
 let timerRemaining = QUESTION_SECONDS;
 let timerDeadline = 0;
 let clockInterval = null;
 const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 async function api(path, body, token) {
-  if (globalThis.QROOM_API_UNCONFIGURED) throw new Error("バックエンド未接続です。Renderのサーバーを作成後、そのURLをVercelの QROOM_API_BASE に設定してください。");
-  const response = await request(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  let response;
+  try {
+    // An empty API base intentionally targets the current origin. This supports
+    // the combined server deployment and lets browser users try the app even
+    // when a separate API origin has not been injected at build time.
+    response = await request(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  } catch {
+    throw new Error("サーバーに接続できません。APIの起動状態と接続先設定を確認してください。");
+  }
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "通信に失敗しました");
   return result;
@@ -39,6 +47,7 @@ function applySnapshot(snapshot) {
   if (snapshot.version < currentVersion) return;
   currentVersion = snapshot.version;
   game = snapshot.game;
+  canUndo = Boolean(snapshot.canUndo);
   timerDeadline = snapshot.questionDeadline || 0;
   timerRemaining = timerDeadline ? Math.max(0, Math.ceil((timerDeadline - Date.now()) / 1000)) : 0;
   if (timerDeadline && clockInterval === null) clockInterval = window.setInterval(() => {
@@ -112,7 +121,7 @@ async function dispatch(action) {
 }
 
 function renderHome() {
-  app.innerHTML = `<main class="home-shell"><header class="brand"><span class="brand-mark">Q</span><div><strong>Q-Room <span>Pro</span></strong><small>競技クイズルーム</small></div></header><section class="hero"><div class="eyebrow">FAST · FAIR · FOCUSED</div><h1>クイズに、<br><em>集中しよう。</em></h1><p>早押しからスコア管理まで。ゲームの進行を、ひとつのルームに。</p>${globalThis.QROOM_API_UNCONFIGURED ? '<div class="connection-notice" role="status">画面は公開済みです。ゲームを動かすには、Renderでバックエンドを作成してVercelへ接続してください。</div>' : ""}${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="primary large" data-action="create">ルームを作成 <span>→</span></button><button class="secondary large join-entry" data-action="join-view">ルームに参加 <span>↗</span></button><div class="hero-note"><span class="pulse"></span> ルームコードで参加 · 同期はリアルタイム</div></section><section class="feature-row"><div><b>01</b><span>瞬時に反応する<br>早押しボタン</span></div><div><b>02</b><span>ルールに沿った<br>スコア管理</span></div><div><b>03</b><span>司会もプレイヤーも<br>同じルームで</span></div></section><footer>Q-ROOM PRO <span>EARLY MVP</span></footer></main>`;
+  app.innerHTML = `<main class="home-shell"><header class="brand"><span class="brand-mark">Q</span><div><strong>Q-Room <span>Pro</span></strong><small>競技クイズルーム</small></div></header><section class="hero"><div class="eyebrow">FAST · FAIR · FOCUSED</div><h1>クイズに、<br><em>集中しよう。</em></h1><p>早押しからスコア管理まで。ゲームの進行を、ひとつのルームに。</p>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="primary large" data-action="create">ルームを作成 <span>→</span></button><button class="secondary large join-entry" data-action="join-view">ルームに参加 <span>↗</span></button><div class="hero-note"><span class="pulse"></span> ルームコードで参加 · 同期はリアルタイム</div></section><section class="feature-row"><div><b>01</b><span>瞬時に反応する<br>早押しボタン</span></div><div><b>02</b><span>ルールに沿った<br>スコア管理</span></div><div><b>03</b><span>司会もプレイヤーも<br>同じルームで</span></div></section><footer>Q-ROOM PRO <span>EARLY MVP</span></footer></main>`;
 }
 
 function renderSetup() {
@@ -155,7 +164,7 @@ function renderRoom() {
     : game.phase === Phase.BUZZED ? `<button class="judge correct" data-action="correct">○ 正解</button><button class="judge incorrect" data-action="incorrect">× 不正解</button>`
       : game.phase === Phase.READY ? `<button class="primary" data-action="next">次の問題 <span>→</span></button>`
         : game.phase === Phase.FINISHED ? `<button class="primary" data-action="reset">もう一度プレイ</button>` : `<button class="secondary" disabled>出題中 · 早押し受付中</button><button class="text-button skip-question" data-action="no-answer">回答なし</button>`;
-  app.innerHTML = `<main class="room-shell">${host}<div class="room-content"><section class="room-title"><div><div class="eyebrow">${esc(RULES[game.ruleId].name)} · QUESTION ${String(game.question).padStart(2, "0")}</div><h1>${esc(game.roomName)}</h1></div><span class="phase-pill ${game.phase}"><i></i>${esc(game.message)}</span></section>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<section class="host-panel"><div class="host-panel-top"><div><small>GAME CONTROL</small><h2>${game.phase === Phase.BUZZED ? "回答者を判定" : game.phase === Phase.FINISHED ? "ゲーム結果" : game.question === 0 ? "参加者を待っています" : "司会コントロール"}</h2></div><span class="host-round">${game.phase === Phase.QUESTION ? `<span class="countdown ${timerRemaining <= 5 ? "urgent" : ""}" aria-label="残り${timerRemaining}秒">${String(timerRemaining).padStart(2, "0")}<small>SEC</small></span>` : game.question ? `Q ${game.question}` : "LOBBY"}</span></div><div class="host-actions">${controls}<span class="host-hint">${game.phase === Phase.BUZZED ? "判定後、次の問題へ進めます" : game.phase === Phase.QUESTION ? "残り時間内に早押しするか、回答なしで次問へ進みます" : game.question === 0 ? "ルームコードを共有し、プレイヤーの参加を待ちます" : "問題を読み上げて、プレイヤーの早押しを待ちます"}</span></div></section><section class="players-section"><div class="section-heading"><div><small>PLAYERS</small><h2>プレイヤー <span>${activePlayers(game).length}/${game.players.length}</span></h2></div>${game.phase !== Phase.FINISHED ? `<button class="text-button" data-action="end">ゲーム終了</button>` : ""}</div><div class="player-grid">${game.players.map(playerCard).join("") || `<p class="empty-players">ルームコードを共有すると、参加者がここに表示されます。</p>`}</div></section>${game.phase === Phase.FINISHED ? `<section class="results"><div class="eyebrow">FINAL RESULTS</div><h2>ゲーム結果</h2><div>${orderedResults(game).map((p, i) => `<p><b>${String(i + 1).padStart(2, "0")}</b> ${esc(p.name)} <span>${p.score}点 · ${p.correct}○ ${p.incorrect}×</span></p>`).join("")}</div></section>` : ""}</div></main>`;
+  app.innerHTML = `<main class="room-shell">${host}<div class="room-content"><section class="room-title"><div><div class="eyebrow">${esc(RULES[game.ruleId].name)} · QUESTION ${String(game.question).padStart(2, "0")}</div><h1>${esc(game.roomName)}</h1></div><span class="phase-pill ${game.phase}"><i></i>${esc(game.message)}</span></section>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<section class="host-panel"><div class="host-panel-top"><div><small>GAME CONTROL</small><h2>${game.phase === Phase.BUZZED ? "回答者を判定" : game.phase === Phase.FINISHED ? "ゲーム結果" : game.question === 0 ? "参加者を待っています" : "司会コントロール"}</h2></div><span class="host-round">${game.phase === Phase.QUESTION ? `<span class="countdown ${timerRemaining <= 5 ? "urgent" : ""}" aria-label="残り${timerRemaining}秒">${String(timerRemaining).padStart(2, "0")}<small>SEC</small></span>` : game.question ? `Q ${game.question}` : "LOBBY"}</span></div><div class="host-actions">${controls}${canUndo && session?.role === "host" ? '<button class="secondary undo-button" data-action="undo">↶ 判定を取り消す</button>' : ""}<span class="host-hint">${game.phase === Phase.BUZZED ? "判定後、次の問題へ進めます" : game.phase === Phase.QUESTION ? "残り時間内に早押しするか、回答なしで次問へ進みます" : game.question === 0 ? "ルームコードを共有し、プレイヤーの参加を待ちます" : "問題を読み上げて、プレイヤーの早押しを待ちます"}</span></div></section><section class="players-section"><div class="section-heading"><div><small>PLAYERS</small><h2>プレイヤー <span>${activePlayers(game).length}/${game.players.length}</span></h2></div>${game.phase !== Phase.FINISHED ? `<button class="text-button" data-action="end">ゲーム終了</button>` : ""}</div><div class="player-grid">${game.players.map(playerCard).join("") || `<p class="empty-players">ルームコードを共有すると、参加者がここに表示されます。</p>`}</div></section>${game.phase === Phase.FINISHED ? `<section class="results"><div class="eyebrow">FINAL RESULTS</div><h2>ゲーム結果</h2><div>${orderedResults(game).map((p, i) => `<p><b>${String(i + 1).padStart(2, "0")}</b> ${esc(p.name)} <span>${p.score}点 · ${p.correct}○ ${p.incorrect}×</span></p>`).join("")}</div></section>` : ""}</div></main>`;
 }
 
 function renderPlayer() {
@@ -181,6 +190,7 @@ app.addEventListener("click", (event) => {
   if (action === "next") dispatch({ type: "NEXT" });
   if (action === "correct") dispatch({ type: "JUDGE", correct: true });
   if (action === "incorrect") dispatch({ type: "JUDGE", correct: false });
+  if (action === "undo") dispatch({ type: "UNDO" });
   if (action === "no-answer") dispatch({ type: "NO_ANSWER" });
   // Pointer users are handled on pointerdown; this fallback supports assistive click activation.
   if (action === "buzz" && event.detail === 0) { buzzFeedback(); dispatch({ type: "BUZZ", playerId: id }); }

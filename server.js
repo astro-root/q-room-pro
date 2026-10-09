@@ -61,7 +61,7 @@ function makeCode() {
 }
 
 function publicRoom(room) {
-  return { game: room.game, version: room.version, questionDeadline: room.questionDeadline };
+  return { game: room.game, version: room.version, questionDeadline: room.questionDeadline, canUndo: Boolean(room.undoGame) };
 }
 
 function broadcast(room) {
@@ -96,6 +96,7 @@ function applyAction(room, action) {
   const next = reduceGame(previous, action);
   if (next === previous) return false;
   room.game = next;
+  if (action.type === "NO_ANSWER") room.undoGame = null;
   if (next.phase === Phase.QUESTION && previous.phase !== Phase.QUESTION) setQuestionTimer(room);
   else if (next.phase !== Phase.QUESTION) stopQuestionTimer(room);
   room.version += 1;
@@ -145,7 +146,7 @@ const server = createServer(async (request, response) => {
       do { roomId = makeCode(); } while (rooms.has(roomId));
       const game = createGame({ roomName, ruleId, names: [] });
       game.roomId = roomId;
-      const room = { game, hostToken: randomBytes(32).toString("base64url"), version: 1, questionDeadline: null, questionTimer: null, listeners: new Set(), players: new Map(), updatedAt: Date.now() };
+      const room = { game, hostToken: randomBytes(32).toString("base64url"), version: 1, questionDeadline: null, questionTimer: null, undoGame: null, listeners: new Set(), players: new Map(), updatedAt: Date.now() };
       rooms.set(roomId, room);
       return json(response, 201, { ...publicRoom(room), hostToken: room.hostToken });
     }
@@ -203,9 +204,26 @@ const server = createServer(async (request, response) => {
       } else if (!hostAuthorized(room, request)) {
         return json(response, 403, { error: "司会者の認証が必要です" });
       }
+      if (action.type === "UNDO") {
+        if (!room.undoGame) return json(response, 409, { error: "取り消せる判定がありません", ...publicRoom(room) });
+        clearTimeout(room.questionTimer);
+        room.questionTimer = null;
+        room.game = room.undoGame;
+        room.undoGame = null;
+        room.questionDeadline = null;
+        room.version += 1;
+        broadcast(room);
+        return json(response, 200, publicRoom(room));
+      }
       if (action.type === "JUDGE" && typeof action.correct !== "boolean") return json(response, 400, { error: "正誤判定が不正です" });
       if (room.questionDeadline && room.questionDeadline <= Date.now()) applyAction(room, { type: "NO_ANSWER" });
-      if (!applyAction(room, action)) return json(response, 409, { error: "現在の状態では操作できません", ...publicRoom(room) });
+      const priorGame = room.game;
+      const priorUndo = room.undoGame;
+      room.undoGame = action.type === "JUDGE" ? priorGame : null;
+      if (!applyAction(room, action)) {
+        room.undoGame = priorUndo;
+        return json(response, 409, { error: "現在の状態では操作できません", ...publicRoom(room) });
+      }
       return json(response, 200, publicRoom(room));
     }
 
