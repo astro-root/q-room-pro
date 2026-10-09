@@ -164,7 +164,7 @@ function renderRoom() {
     : game.phase === Phase.BUZZED ? `<button class="judge correct" data-action="correct">○ 正解</button><button class="judge incorrect" data-action="incorrect">× 不正解</button>`
       : game.phase === Phase.READY ? `<button class="primary" data-action="next">次の問題 <span>→</span></button>`
         : game.phase === Phase.FINISHED ? `<button class="primary" data-action="reset">もう一度プレイ</button>` : `<button class="secondary" disabled>出題中 · 早押し受付中</button><button class="text-button skip-question" data-action="no-answer">回答なし</button>`;
-  app.innerHTML = `<main class="room-shell">${host}<div class="room-content"><section class="room-title"><div><div class="eyebrow">${esc(RULES[game.ruleId].name)} · QUESTION ${String(game.question).padStart(2, "0")}</div><h1>${esc(game.roomName)}</h1></div><span class="phase-pill ${game.phase}"><i></i>${esc(game.message)}</span></section>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<section class="host-panel"><div class="host-panel-top"><div><small>GAME CONTROL</small><h2>${game.phase === Phase.BUZZED ? "回答者を判定" : game.phase === Phase.FINISHED ? "ゲーム結果" : game.question === 0 ? "参加者を待っています" : "司会コントロール"}</h2></div><span class="host-round">${game.phase === Phase.QUESTION ? `<span class="countdown ${timerRemaining <= 5 ? "urgent" : ""}" aria-label="残り${timerRemaining}秒">${String(timerRemaining).padStart(2, "0")}<small>SEC</small></span>` : game.question ? `Q ${game.question}` : "LOBBY"}</span></div><div class="host-actions">${controls}${canUndo && session?.role === "host" ? '<button class="secondary undo-button" data-action="undo">↶ 判定を取り消す</button>' : ""}<span class="host-hint">${game.phase === Phase.BUZZED ? "判定後、次の問題へ進めます" : game.phase === Phase.QUESTION ? "残り時間内に早押しするか、回答なしで次問へ進みます" : game.question === 0 ? "ルームコードを共有し、プレイヤーの参加を待ちます" : "問題を読み上げて、プレイヤーの早押しを待ちます"}</span></div></section><section class="players-section"><div class="section-heading"><div><small>PLAYERS</small><h2>プレイヤー <span>${activePlayers(game).length}/${game.players.length}</span></h2></div>${game.phase !== Phase.FINISHED ? `<button class="text-button" data-action="end">ゲーム終了</button>` : ""}</div><div class="player-grid">${game.players.map(playerCard).join("") || `<p class="empty-players">ルームコードを共有すると、参加者がここに表示されます。</p>`}</div></section>${game.phase === Phase.FINISHED ? `<section class="results"><div class="eyebrow">FINAL RESULTS</div><h2>ゲーム結果</h2><div>${orderedResults(game).map((p, i) => `<p><b>${String(i + 1).padStart(2, "0")}</b> ${esc(p.name)} <span>${p.score}点 · ${p.correct}○ ${p.incorrect}×</span></p>`).join("")}</div></section>` : ""}</div></main>`;
+  app.innerHTML = `<main class="room-shell">${host}<div class="room-content"><section class="room-title"><div><div class="eyebrow">${esc(RULES[game.ruleId].name)} · QUESTION ${String(game.question).padStart(2, "0")}</div><h1>${esc(game.roomName)}</h1></div><span class="phase-pill ${game.phase}"><i></i>${esc(game.message)}</span></section>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<section class="host-panel"><div class="host-panel-top"><div><small>GAME CONTROL</small><h2>${game.phase === Phase.BUZZED ? "回答者を判定" : game.phase === Phase.FINISHED ? "ゲーム結果" : game.question === 0 ? "参加者を待っています" : "司会コントロール"}</h2></div><span class="host-round">${game.phase === Phase.QUESTION ? `<span class="countdown ${timerRemaining <= 5 ? "urgent" : ""}" aria-label="残り${timerRemaining}秒">${String(timerRemaining).padStart(2, "0")}<small>SEC</small></span>` : game.question ? `Q ${game.question}` : "LOBBY"}</span></div><div class="host-actions">${controls}${canUndo && session?.role === "host" ? '<button class="secondary undo-button" data-action="undo">↶ 判定を取り消す</button>' : ""}<span class="host-hint">${game.phase === Phase.BUZZED ? "判定後、次の問題へ進めます" : game.phase === Phase.QUESTION ? "残り時間内に早押しするか、回答なしで次問へ進みます" : game.question === 0 ? "ルームコードを共有し、プレイヤーの参加を待ちます" : "問題を読み上げて、プレイヤーの早押しを待ちます"}</span><span class="keyboard-hint" aria-label="キーボードショートカット">1 正解 · 2 不正解 · N 次問 · U 取り消し</span></div></section><section class="players-section"><div class="section-heading"><div><small>PLAYERS</small><h2>プレイヤー <span>${activePlayers(game).length}/${game.players.length}</span></h2></div>${game.phase !== Phase.FINISHED ? `<button class="text-button" data-action="end">ゲーム終了</button>` : ""}</div><div class="player-grid">${game.players.map(playerCard).join("") || `<p class="empty-players">ルームコードを共有すると、参加者がここに表示されます。</p>`}</div></section>${game.phase === Phase.FINISHED ? `<section class="results"><div class="eyebrow">FINAL RESULTS</div><h2>ゲーム結果</h2><div>${orderedResults(game).map((p, i) => `<p><b>${String(i + 1).padStart(2, "0")}</b> ${esc(p.name)} <span>${p.score}点 · ${p.correct}○ ${p.incorrect}×</span></p>`).join("")}</div></section>` : ""}</div></main>`;
 }
 
 function renderPlayer() {
@@ -217,8 +217,24 @@ app.addEventListener("pointerdown", (event) => {
 });
 app.addEventListener("pointerup", () => document.querySelectorAll(".player-buzz.pressed").forEach((button) => button.classList.remove("pressed")));
 window.addEventListener("keydown", (event) => {
-  if (view !== "player" || event.repeat || event.target.matches("input,textarea,select")) return;
-  if (event.code === "Space" && session?.playerId && canBuzz(game, session.playerId)) void dispatch({ type: "BUZZ", playerId: session.playerId });
+  if (event.repeat || event.target.matches("input,textarea,select,[contenteditable='true']") || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (view === "player" && event.code === "Space" && session?.playerId && canBuzz(game, session.playerId)) {
+    event.preventDefault();
+    buzzFeedback();
+    void dispatch({ type: "BUZZ", playerId: session.playerId });
+    return;
+  }
+  if (view !== "room" || session?.role !== "host") return;
+  const shortcuts = {
+    Digit1: game.phase === Phase.BUZZED ? { type: "JUDGE", correct: true } : null,
+    Numpad1: game.phase === Phase.BUZZED ? { type: "JUDGE", correct: true } : null,
+    Digit2: game.phase === Phase.BUZZED ? { type: "JUDGE", correct: false } : null,
+    Numpad2: game.phase === Phase.BUZZED ? { type: "JUDGE", correct: false } : null,
+    KeyN: game.phase === Phase.READY && game.question > 0 ? { type: "NEXT" } : null,
+    KeyU: canUndo ? { type: "UNDO" } : null,
+  };
+  const action = shortcuts[event.code];
+  if (action) { event.preventDefault(); void dispatch(action); }
 });
 
 async function refreshRoom() {
