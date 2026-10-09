@@ -48,6 +48,15 @@ export function reduceGame(game, action) {
     const message = winner ? `${winner.name} が勝利しました` : noPlayers ? "全員が失格しました" : action.correct ? "正解！次の問題へ" : canContinueQuestion ? "不正解 · ほかのプレイヤーの回答を受付中" : "不正解 · 回答できるプレイヤーがいません";
     return { ...game, players, phase, buzzedPlayerId: null, message };
   }
+  if (action.type === "SET_SCORE") {
+    const target = game.players.find((player) => player.id === action.playerId);
+    if (!target || !Number.isInteger(action.score) || action.score < 0 || action.score > 999) return game;
+    return {
+      ...game,
+      players: game.players.map((player) => player.id === action.playerId ? { ...player, score: action.score } : player),
+      message: `${target.name}の得点を${action.score}点に修正しました`,
+    };
+  }
   if (action.type === "NEXT") {
     if (game.phase !== Phase.READY) return game;
     return { ...game, question: game.question + 1, phase: Phase.QUESTION, buzzOrder: [], buzzedPlayerId: null, players: game.players.map((player) => ({ ...player, penalty: false })), message: "問題を出題中" };

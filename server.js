@@ -70,9 +70,9 @@ function broadcast(room) {
   for (const response of room.listeners) response.write(payload);
 }
 
-function setQuestionTimer(room) {
+function setQuestionTimer(room, deadline = Date.now() + 20_000) {
   clearTimeout(room.questionTimer);
-  room.questionDeadline = Date.now() + 20_000;
+  room.questionDeadline = deadline;
   room.questionTimer = setTimeout(() => {
     room.questionTimer = null;
     const next = reduceGame(room.game, { type: "NO_ANSWER" });
@@ -82,7 +82,7 @@ function setQuestionTimer(room) {
       room.version += 1;
       broadcast(room);
     }
-  }, 20_000);
+  }, Math.max(0, deadline - Date.now()));
 }
 
 function stopQuestionTimer(room) {
@@ -205,21 +205,26 @@ const server = createServer(async (request, response) => {
         return json(response, 403, { error: "司会者の認証が必要です" });
       }
       if (action.type === "UNDO") {
-        if (!room.undoGame) return json(response, 409, { error: "取り消せる判定がありません", ...publicRoom(room) });
+        if (!room.undoGame) return json(response, 409, { error: "取り消せる操作がありません", ...publicRoom(room) });
         clearTimeout(room.questionTimer);
         room.questionTimer = null;
-        room.game = room.undoGame;
+        room.game = room.undoGame.game;
+        const undoDeadline = room.undoGame.questionDeadline;
         room.undoGame = null;
         room.questionDeadline = null;
+        if (undoDeadline && room.game.phase === Phase.QUESTION) setQuestionTimer(room, undoDeadline);
         room.version += 1;
         broadcast(room);
         return json(response, 200, publicRoom(room));
       }
       if (action.type === "JUDGE" && typeof action.correct !== "boolean") return json(response, 400, { error: "正誤判定が不正です" });
+      if (action.type === "SET_SCORE" && (!room.game.players.some((player) => player.id === action.playerId) || !Number.isInteger(action.score) || action.score < 0 || action.score > 999)) {
+        return json(response, 400, { error: "得点は0〜999の整数で指定してください" });
+      }
       if (room.questionDeadline && room.questionDeadline <= Date.now()) applyAction(room, { type: "NO_ANSWER" });
       const priorGame = room.game;
       const priorUndo = room.undoGame;
-      room.undoGame = action.type === "JUDGE" ? priorGame : null;
+      room.undoGame = action.type === "JUDGE" || action.type === "SET_SCORE" ? { game: priorGame, questionDeadline: room.questionDeadline } : null;
       if (!applyAction(room, action)) {
         room.undoGame = priorUndo;
         return json(response, 409, { error: "現在の状態では操作できません", ...publicRoom(room) });
