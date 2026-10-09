@@ -21,6 +21,7 @@ let session = null;
 let eventSource = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
+let connectionState = "disconnected";
 let notice = "";
 let currentVersion = 0;
 let canUndo = false;
@@ -72,6 +73,7 @@ function applySnapshot(snapshot) {
 async function connectRoom(snapshot, newSession, nextView) {
   currentVersion = 0;
   session = newSession;
+  connectionState = "connecting";
   notice = "";
   await writePreference("qroom-session", JSON.stringify(session));
   view = nextView;
@@ -83,19 +85,26 @@ async function connectRoom(snapshot, newSession, nextView) {
 
 function connectRoomEvents() {
   if (!session) return;
-  eventSource = openRoomEvents(session.roomId);
-  eventSource.onopen = () => {
+  const source = openRoomEvents(session.roomId);
+  eventSource = source;
+  source.onopen = () => {
+    if (eventSource !== source) return;
+    connectionState = "connected";
     if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
-    if (notice) { notice = ""; render(); }
+    if (notice) notice = "";
+    render();
   };
-  eventSource.onmessage = (event) => {
+  source.onmessage = (event) => {
+    if (eventSource !== source) return;
     if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
     reconnectAttempts = 0;
     notice = "";
     applySnapshot(JSON.parse(event.data));
   };
-  eventSource.onerror = () => {
-    notice = "再接続中… · ネットワークを確認してください";
+  source.onerror = () => {
+    if (eventSource !== source) return;
+    connectionState = navigator.onLine ? "reconnecting" : "offline";
+    notice = connectionState === "offline" ? "オフラインです。接続が戻ると自動で再接続します。" : "再接続中… · ネットワークを確認してください";
     render();
     if (reconnectTimer === null) {
       const baseDelay = Math.min(30_000, 3_000 * (2 ** Math.min(reconnectAttempts++, 4)));
@@ -170,8 +179,12 @@ function playerCard(player, index) {
   return `<article class="player-card ${buzzed ? "is-buzzed" : ""} ${player.eliminated ? "is-out" : ""}"><div class="player-meta"><span class="player-index">${String(index + 1).padStart(2, "0")}</span><strong>${esc(player.name)}</strong>${player.eliminated ? '<span class="out-tag">OUT</span>' : player.penalty ? '<span class="penalty-tag">PENALTY</span>' : ""}</div><div class="player-stats"><b>${player.score}<small>点</small></b><span>${player.correct} <i>○</i></span><span>${player.incorrect} <i class="cross">×</i></span></div><div class="host-player-status">${status}</div></article>`;
 }
 
+function connectionLabel(state) {
+  return ({ connected: "接続済み", connecting: "接続中", reconnecting: "再接続中", offline: "オフライン", disconnected: "切断" })[state] || "接続状態不明";
+}
+
 function renderRoom() {
-  const host = `<header class="room-header"><div class="brand compact"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></div><div class="room-header-actions"><div class="room-code"><small>ROOM CODE</small><b>${game.roomId}</b></div><button class="secondary mode-button" data-action="copy-code">参加リンクを共有</button><button class="icon-button sound-toggle" data-action="sound-toggle" aria-label="効果音${soundEnabled ? "をオフ" : "をオン"}" title="効果音">${soundEnabled ? "♫" : "♪̸"}</button>${canRequestFullscreen() ? '<button class="icon-button" data-action="fullscreen" title="全画面表示">⛶</button>' : ""}</div></header>`;
+  const host = `<header class="room-header"><div class="brand compact"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></div><div class="room-header-actions"><span class="connection-status ${connectionState}" role="status"><i></i>${connectionLabel(connectionState)}</span><div class="room-code"><small>ROOM CODE</small><b>${game.roomId}</b></div><button class="secondary mode-button" data-action="copy-code">参加リンクを共有</button><button class="icon-button sound-toggle" data-action="sound-toggle" aria-label="効果音${soundEnabled ? "をオフ" : "をオン"}" title="効果音">${soundEnabled ? "♫" : "♪̸"}</button>${canRequestFullscreen() ? '<button class="icon-button" data-action="fullscreen" title="全画面表示">⛶</button>' : ""}</div></header>`;
   const controls = game.phase === Phase.READY && game.question === 0
     ? `<button class="primary" data-action="start" ${game.players.length ? "" : "disabled"}>ゲーム開始 <span>→</span></button>`
     : game.phase === Phase.BUZZED ? `<button class="judge correct" data-action="correct">○ 正解</button><button class="judge incorrect" data-action="incorrect">× 不正解</button>`
@@ -185,7 +198,7 @@ function renderPlayer() {
   if (!player) { view = "home"; renderHome(); return; }
   const canPress = canBuzz(game, player.id);
   const label = game.phase === Phase.FINISHED ? "ゲーム終了" : player.eliminated ? "失格" : game.phase === Phase.BUZZED ? game.buzzedPlayerId === player.id ? "あなたの回答です" : "回答受付終了" : canPress ? "問題を聞いて、わかったら押す" : game.phase === Phase.READY ? "次の問題を待っています" : "出題中";
-  app.innerHTML = `<main class="player-shell ${canPress ? "accepting" : ""}"><header class="player-header"><a class="brand compact" href="#" data-action="leave-room"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></a><div class="player-header-actions"><span class="room-code"><small>ROOM</small><b>${game.roomId}</b></span><button class="icon-button sound-toggle" data-action="sound-toggle" aria-label="効果音${soundEnabled ? "をオフ" : "をオン"}" title="効果音">${soundEnabled ? "♫" : "♪̸"}</button></div></header><section class="player-main"><div class="player-game-meta"><span class="eyebrow">${esc(game.roomName)} · ${RULES[game.ruleId].name}</span><span>QUESTION ${String(game.question).padStart(2, "0")}</span></div><div class="player-select-label">PLAYER</div><div class="player-scoreline"><div><strong>${esc(player.name)}</strong><span>${player.correct} ○ <i>${player.incorrect} ×</i></span></div><b>${player.score}<small>PTS</small></b></div>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="player-buzz ${canPress ? "ready" : ""} ${game.buzzedPlayerId === player.id ? "won" : ""}" data-action="buzz" data-id="${player.id}" ${canPress ? "" : "disabled"}><span>${canPress ? "BUZZ" : game.buzzedPlayerId === player.id ? "BUZZED" : "WAIT"}</span><small>${canPress ? "TAP TO ANSWER" : esc(label)}</small></button><div class="player-state"><span class="state-dot ${game.phase}"></span>${esc(label)}${game.phase === Phase.QUESTION ? `<b class="player-time">${timerRemaining}s</b>` : ""}</div></section><footer class="player-footer"><span>Q-ROOM PRO</span><button class="text-button" data-action="leave-room">ルームを退出</button></footer></main>`;
+  app.innerHTML = `<main class="player-shell ${canPress ? "accepting" : ""}"><header class="player-header"><a class="brand compact" href="#" data-action="leave-room"><span class="brand-mark">Q</span><strong>Q-Room <span>Pro</span></strong></a><div class="player-header-actions"><span class="connection-status ${connectionState}" role="status"><i></i>${connectionLabel(connectionState)}</span><span class="room-code"><small>ROOM</small><b>${game.roomId}</b></span><button class="icon-button sound-toggle" data-action="sound-toggle" aria-label="効果音${soundEnabled ? "をオフ" : "をオン"}" title="効果音">${soundEnabled ? "♫" : "♪̸"}</button></div></header><section class="player-main"><div class="player-game-meta"><span class="eyebrow">${esc(game.roomName)} · ${RULES[game.ruleId].name}</span><span>QUESTION ${String(game.question).padStart(2, "0")}</span></div><div class="player-select-label">PLAYER</div><div class="player-scoreline"><div><strong>${esc(player.name)}</strong><span>${player.correct} ○ <i>${player.incorrect} ×</i></span></div><b>${player.score}<small>PTS</small></b></div>${notice ? `<div class="connection-notice" role="status">${esc(notice)}</div>` : ""}<button class="player-buzz ${canPress ? "ready" : ""} ${game.buzzedPlayerId === player.id ? "won" : ""}" data-action="buzz" data-id="${player.id}" ${canPress ? "" : "disabled"}><span>${canPress ? "BUZZ" : game.buzzedPlayerId === player.id ? "BUZZED" : "WAIT"}</span><small>${canPress ? "TAP TO ANSWER" : esc(label)}</small></button><div class="player-state"><span class="state-dot ${game.phase}"></span>${esc(label)}${game.phase === Phase.QUESTION ? `<b class="player-time">${timerRemaining}s</b>` : ""}</div></section><footer class="player-footer"><span>Q-ROOM PRO</span><button class="text-button" data-action="leave-room">ルームを退出</button></footer></main>`;
 }
 
 function render() {
@@ -281,10 +294,28 @@ async function refreshRoom() {
   }
 }
 
+window.addEventListener("offline", () => {
+  if (!session) return;
+  connectionState = "offline";
+  notice = "オフラインです。接続が戻ると自動で再接続します。";
+  render();
+});
+window.addEventListener("online", () => {
+  if (!session) return;
+  connectionState = "reconnecting";
+  notice = "接続を復旧しています…";
+  render();
+  if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
+  eventSource?.close();
+  eventSource = null;
+  void refreshRoom().finally(() => { if (session) connectRoomEvents(); });
+});
+
 function closeRoomView() {
   eventSource?.close(); eventSource = null;
   if (reconnectTimer !== null) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
   session = null; game = null;
+  connectionState = "disconnected";
   void setScreenAwake(false);
   void removePreference("qroom-session");
   view = "home";

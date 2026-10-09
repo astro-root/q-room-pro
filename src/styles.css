@@ -35,4 +35,10 @@
   .setup-shell h1{font-size:clamp(42px,12vw,56px)}
 }
 .keyboard-hint{color:#78818d;font:9px 'DM Mono',monospace;letter-spacing:.04em}
+.connection-status{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:100px;color:#a5adb8;font:9px 'DM Mono',monospace;white-space:nowrap}
+.connection-status i{width:7px;height:7px;border-radius:50%;background:#89919d}
+.connection-status.connected i{background:var(--lime);box-shadow:0 0 10px #d4fc6360}
+.connection-status.connecting i,.connection-status.reconnecting i{background:#ffd05e;box-shadow:0 0 10px #ffd05e60}
+.connection-status.offline i,.connection-status.disconnected i{background:var(--orange)}
 @media(max-width:650px){.keyboard-hint{display:none}}
+@media(max-width:650px){.connection-status{font-size:0;padding:6px;gap:0}.connection-status i{display:block}}
